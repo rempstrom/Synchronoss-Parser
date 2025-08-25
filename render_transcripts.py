@@ -420,21 +420,28 @@ def write_index(out_dir: Path, entries: List[Tuple[str, str, int, int]]):
     (out_dir / "index.html").write_text("\n".join(lines), encoding="utf-8")
 
 
-# ------------------------- Main -------------------------
+# ------------------------- Rendering Wrapper -------------------------
 
-def main():
-    ap = argparse.ArgumentParser(description="Render chat transcripts from CSVs into HTML.")
-    ap.add_argument("--in", dest="in_dir", required=True, help="Input root folder (expects CSVs inside, plus attachments/...) e.g. messages")
-    ap.add_argument("--out", dest="out_dir", required=True, help="Output folder for HTML transcripts, e.g. transcripts")
-    args = ap.parse_args()
+def render_transcripts(in_dir: str, out_dir: str, progress_callback=None):
+    """Render all CSV transcripts from *in_dir* into *out_dir*.
 
-    messages_root = Path(args.in_dir).resolve()
-    out_root = Path(args.out_dir).resolve()
+    The optional *progress_callback* is called with status strings; if not
+    provided, messages are printed to stdout.
+    """
+
+    def log(msg: str):
+        if progress_callback:
+            progress_callback(msg)
+        else:
+            print(msg)
+
+    messages_root = Path(in_dir).resolve()
+    out_root = Path(out_dir).resolve()
     out_root.mkdir(parents=True, exist_ok=True)
 
     csv_files = sorted(messages_root.glob("*.csv"))
     if not csv_files:
-        print(f"No CSV files found in {messages_root}")
+        log(f"No CSV files found in {messages_root}")
         return
 
     index_entries: List[Tuple[str, str, int, int]] = []
@@ -445,10 +452,83 @@ def main():
         total, with_attachments = render_thread_html(csv_file, messages_root, out_file)
         rel = os.path.relpath(out_file, start=out_root).replace(os.sep, "/")
         index_entries.append((title, rel, total, with_attachments))
-        print(f"Rendered {csv_file.name}: {total} messages ({with_attachments} with attachments)")
+        log(f"Rendered {csv_file.name}: {total} messages ({with_attachments} with attachments)")
 
     write_index(out_root, index_entries)
-    print(f"\nDone. Open: {out_root / 'index.html'}")
+    log(f"\nDone. Open: {out_root / 'index.html'}")
+
+
+# ------------------------- GUI -------------------------
+
+def launch_gui():
+    import tkinter as tk
+    from tkinter import filedialog, messagebox
+    from tkinter.scrolledtext import ScrolledText
+
+    root = tk.Tk()
+    root.title("Transcript Renderer")
+
+    in_var = tk.StringVar()
+    out_var = tk.StringVar()
+
+    def choose_in():
+        path = filedialog.askdirectory(title="Select messages folder")
+        if path:
+            in_var.set(path)
+
+    def choose_out():
+        path = filedialog.askdirectory(title="Select output folder")
+        if path:
+            out_var.set(path)
+
+    def log(msg: str):
+        text_area.insert(tk.END, msg + "\n")
+        text_area.see(tk.END)
+        root.update_idletasks()
+
+    def do_render():
+        text_area.delete("1.0", tk.END)
+        in_dir = in_var.get()
+        out_dir = out_var.get()
+        if not in_dir or not out_dir:
+            messagebox.showwarning("Missing directories", "Please select both input and output folders.")
+            return
+        render_transcripts(in_dir, out_dir, progress_callback=log)
+
+    tk.Label(root, text="Messages folder:").grid(row=0, column=0, sticky="w", padx=5, pady=5)
+    tk.Entry(root, textvariable=in_var, width=50).grid(row=0, column=1, padx=5, pady=5)
+    tk.Button(root, text="Browse", command=choose_in).grid(row=0, column=2, padx=5, pady=5)
+
+    tk.Label(root, text="Output folder:").grid(row=1, column=0, sticky="w", padx=5, pady=5)
+    tk.Entry(root, textvariable=out_var, width=50).grid(row=1, column=1, padx=5, pady=5)
+    tk.Button(root, text="Browse", command=choose_out).grid(row=1, column=2, padx=5, pady=5)
+
+    tk.Button(root, text="Render", command=do_render).grid(row=2, column=0, columnspan=3, pady=5)
+
+    text_area = ScrolledText(root, width=80, height=20)
+    text_area.grid(row=3, column=0, columnspan=3, padx=5, pady=5, sticky="nsew")
+
+    root.columnconfigure(1, weight=1)
+    root.rowconfigure(3, weight=1)
+
+    root.mainloop()
+
+
+# ------------------------- Main -------------------------
+
+def main():
+    import sys
+
+    if len(sys.argv) > 1:
+        ap = argparse.ArgumentParser(description="Render chat transcripts from CSVs into HTML.")
+        ap.add_argument("--in", dest="in_dir", required=True,
+                        help="Input root folder (expects CSVs inside, plus attachments/...) e.g. messages")
+        ap.add_argument("--out", dest="out_dir", required=True,
+                        help="Output folder for HTML transcripts, e.g. transcripts")
+        args = ap.parse_args()
+        render_transcripts(args.in_dir, args.out_dir)
+    else:
+        launch_gui()
 
 
 if __name__ == "__main__":
