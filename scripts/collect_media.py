@@ -47,13 +47,9 @@ def extract_exif(path: Path) -> dict:
     """
     try:
         with Image.open(path) as img:
-            exif = img._getexif() or {}
+            return {ExifTags.TAGS.get(k, k): v for k, v in img.getexif().items()}
     except Exception:
         return {}
-
-    # Convert tag IDs to names
-    tag_map = {ExifTags.TAGS.get(k, k): v for k, v in exif.items()}
-    return tag_map
 
 def ensure_unique_name(target_dir: Path, filename: str) -> Path:
     """Ensure unique filename inside target_dir to avoid overwrites."""
