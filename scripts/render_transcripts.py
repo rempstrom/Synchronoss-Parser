@@ -50,9 +50,8 @@ import os
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
-from openpyxl import Workbook
 
 # ------------------------- Config & Utilities -------------------------
 
@@ -138,6 +137,7 @@ class Message:
     sender: str
     recipients: str
     message_id: str
+    attachment_day: Optional[str] = None
 
 
 def parse_csv_date(value: str) -> Optional[datetime]:
@@ -244,6 +244,7 @@ def relpath_for_html(from_file: Path, to_target: Path) -> str:
 
 def load_messages_from_csv(csv_file: Path) -> List[Message]:
     msgs: List[Message] = []
+    day_folder = derive_attachment_day_from_csv_name(csv_file)
     with csv_file.open("r", encoding="utf-8", newline="") as f:
         reader = csv.DictReader(f)
         for row in reader:
@@ -257,21 +258,74 @@ def load_messages_from_csv(csv_file: Path) -> List[Message]:
             sender = row.get("Sender") or ""
             recipients = row.get("Recipients") or ""
             message_id = row.get("Message ID") or ""
-            msgs.append(Message(date_raw, date_dt, msg_type, direction, attachments, body, sender, recipients, message_id))
+            msgs.append(
+                Message(
+                    date_raw,
+                    date_dt,
+                    msg_type,
+                    direction,
+                    attachments,
+                    body,
+                    sender,
+                    recipients,
+                    message_id,
+                    day_folder,
+                )
+            )
     # Sort chronologically with stable fallback to raw string
     msgs.sort(key=lambda m: (m.date_dt or datetime.max.replace(tzinfo=timezone.utc), m.date_raw))
     return msgs
 
 
+# ------------------------- Grouping -------------------------
+
+def sanitize_participants(participants: Tuple[str, ...]) -> str:
+    if not participants:
+        return "chat"
+    cleaned = ["".join(ch for ch in p if ch.isalnum()) for p in participants]
+    cleaned = [c or "unknown" for c in cleaned]
+    return "-".join(cleaned) or "chat"
+
+
+def group_messages_by_chat(messages: List[Message], target: str) -> Dict[Tuple[str, ...], List[Message]]:
+    groups: Dict[Tuple[str, ...], List[Message]] = {}
+    for m in messages:
+        if m.msg_type in {"sms", "mms", "rcs"}:
+            if m.direction == "out" and not m.sender:
+                m.sender = target
+            if m.direction == "in" and not m.recipients:
+                m.recipients = target
+        recips: List[str] = []
+        if m.recipients:
+            for part in m.recipients.replace(",", ";").split(";"):
+                p = part.strip()
+                if p:
+                    recips.append(p)
+        participants = set(recips)
+        if m.sender:
+            participants.add(m.sender)
+        if target:
+            participants.add(target)
+        key = tuple(sorted(participants))
+        groups.setdefault(key, []).append(m)
+    for lst in groups.values():
+        lst.sort(key=lambda mm: (mm.date_dt or datetime.max.replace(tzinfo=timezone.utc), mm.date_raw))
+    return groups
+
+
 # ------------------------- HTML Rendering -------------------------
 
-def render_thread_html(csv_file: Path, messages_root: Path, out_file: Path, msgs: List[Message]) -> Tuple[int, int]:
-    day_folder = derive_attachment_day_from_csv_name(csv_file)
-
+def render_thread_html(
+    messages_root: Path,
+    out_file: Path,
+    msgs: List[Message],
+    participants: List[str],
+    target_number: str,
+) -> Tuple[int, int]:
     total = len(msgs)
     with_attachments = 0
 
-    title = f"Chat – {csv_file.stem}"
+    title = f"Chat – {', '.join(participants)}"
 
     parts: List[str] = []
     parts.append("<!DOCTYPE html>")
@@ -286,7 +340,8 @@ def render_thread_html(csv_file: Path, messages_root: Path, out_file: Path, msgs
 
     parts.append("<div class=\"header\">")
     parts.append(f"  <div class=\"container\"><div><strong>{html.escape(title)}</strong></div>")
-    parts.append(f"  <div class=\"thread-meta\">Source CSV: <span class=\"code\">{html.escape(str(csv_file))}</span></div>")
+    meta_line = f"Target: {html.escape(target_number)}<br>Participants: {html.escape(', '.join(participants))}"
+    parts.append(f"  <div class=\"thread-meta\">{meta_line}</div>")
     parts.append("  </div>")
     parts.append("</div>")
 
@@ -320,9 +375,11 @@ def render_thread_html(csv_file: Path, messages_root: Path, out_file: Path, msgs
             for fname in m.attachments:
                 if not fname or fname.lower() in {"null", "null.txt", "none", "(null)", "aaaa"}:
                     continue
-                if not day_folder:
+                if not m.attachment_day:
                     continue
-                target = build_attachment_path(messages_root, m.msg_type or "", m.direction or "", day_folder, fname)
+                target = build_attachment_path(
+                    messages_root, m.msg_type or "", m.direction or "", m.attachment_day, fname
+                )
                 if not target.exists():
                     # Some exports stash attachments without the dated subfolder; check fallback path
                     alt = messages_root / "attachments" / (m.msg_type or "") / (m.direction or "") / fname
@@ -375,9 +432,13 @@ def render_thread_html(csv_file: Path, messages_root: Path, out_file: Path, msgs
         # Meta line
         if m.date_dt:
             local_str = m.date_dt.astimezone().strftime("%Y-%m-%d %H:%M:%S %Z")
-            parts.append(f"    <div class=\"meta\">{html.escape(local_str)} · {html.escape(m.direction)} · {html.escape(m.msg_type)}</div>")
+            parts.append(
+                f"    <div class=\"meta\">{html.escape(local_str)} · {html.escape(m.direction)} · {html.escape(m.msg_type)}</div>"
+            )
         else:
-            parts.append(f"    <div class=\"meta\">{html.escape(m.date_raw)} · {html.escape(m.direction)} · {html.escape(m.msg_type)}</div>")
+            parts.append(
+                f"    <div class=\"meta\">{html.escape(m.date_raw)} · {html.escape(m.direction)} · {html.escape(m.msg_type)}</div>"
+            )
 
         parts.append("  </div>")  # bubble
         parts.append("</div>")    # message
@@ -408,7 +469,7 @@ def write_index(out_dir: Path, entries: List[Tuple[str, str, int, int]]):
     lines.append("</head><body>")
     lines.append("<div class=\"container\">")
     lines.append("  <h1>Message Transcripts</h1>")
-    lines.append("  <div class=\"subtitle\">One HTML per CSV. Click to view. (Times shown in local system timezone inside each transcript.)</div>")
+    lines.append("  <div class=\"subtitle\">One HTML per chat. Click to view. (Times shown in local system timezone inside each transcript.)</div>")
     lines.append("  <div class=\"list\">")
     for title, rel, c, ca in entries:
         lines.append("    <div class=\"item\">")
@@ -427,8 +488,10 @@ def main():
     ap = argparse.ArgumentParser(description="Render chat transcripts from CSVs into HTML.")
     ap.add_argument("--in", dest="in_dir", required=True, help="Input root folder (expects CSVs inside, plus attachments/...) e.g. messages")
     ap.add_argument("--out", dest="out_dir", required=True, help="Output folder for HTML transcripts, e.g. transcripts")
-    ap.add_argument("--target", default="", help="Phone number of the target user")
+    ap.add_argument("--target-number", default="", help="Phone number of the target user")
     args = ap.parse_args()
+
+    target = args.target_number
 
     messages_root = Path(args.in_dir).resolve()
     out_root = Path(args.out_dir).resolve()
@@ -439,29 +502,36 @@ def main():
         print(f"No CSV files found in {messages_root}")
         return
 
-    index_entries: List[Tuple[str, str, int, int]] = []
+    all_msgs: List[Message] = []
     call_records: List[Message] = []
 
     for csv_file in csv_files:
         msgs = load_messages_from_csv(csv_file)
-        call_msgs = [m for m in msgs if m.msg_type == "call"]
-        other_msgs = [m for m in msgs if m.msg_type != "call"]
+        for m in msgs:
+            if m.msg_type == "call":
+                if not m.sender:
+                    m.sender = target
+                if not m.recipients:
+                    m.recipients = target
+                call_records.append(m)
+            else:
+                all_msgs.append(m)
 
-        for m in call_msgs:
-            if not m.sender:
-                m.sender = args.target
-            if not m.recipients:
-                m.recipients = args.target
-        call_records.extend(call_msgs)
+    grouped = group_messages_by_chat(all_msgs, target)
 
-        title = f"Chat – {csv_file.stem}"
-        out_file = out_root / f"thread-{csv_file.stem}.html"
-        total, with_attachments = render_thread_html(csv_file, messages_root, out_file, other_msgs)
+    index_entries: List[Tuple[str, str, int, int]] = []
+    for participants, msgs in grouped.items():
+        title = f"Chat – {', '.join(participants)}"
+        key = sanitize_participants(participants)
+        out_file = out_root / f"chat-{key}.html"
+        total, with_attachments = render_thread_html(messages_root, out_file, msgs, list(participants), target)
         rel = os.path.relpath(out_file, start=out_root).replace(os.sep, "/")
         index_entries.append((title, rel, total, with_attachments))
-        print(f"Rendered {csv_file.name}: {total} messages ({with_attachments} with attachments)")
+        print(f"Rendered chat {', '.join(participants)}: {total} messages ({with_attachments} with attachments)")
 
     write_index(out_root, index_entries)
+
+    from openpyxl import Workbook
 
     call_log_path = out_root / "Call Log.xlsx"
     wb = Workbook()
