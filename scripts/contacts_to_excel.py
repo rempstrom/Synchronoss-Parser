@@ -12,7 +12,7 @@ from pathlib import Path
 # Try imports and give friendly guidance if packages aren't installed
 try:
     import pandas as pd
-except ImportError:
+except ImportError:  # pragma: no cover - user guidance path
     print("Missing dependency: pandas. Install with:\n  pip install --user pandas openpyxl")
     input("\nPress Enter to close...")
     sys.exit(1)
@@ -89,32 +89,85 @@ def build_dataframe(contacts):
     cols = [c for c in preferred if c in df.columns] + [c for c in df.columns if c not in preferred]
     return df[cols]
 
-def main():
-    in_path = Path(INPUT_FILE)
+def convert_contacts(input_file: str, output_file: str) -> int:
+    """Convert a Synchronoss contacts dump to Excel."""
+    in_path = Path(input_file)
     if not in_path.exists():
-        print(f"File not found: {in_path}")
-        input("\nPress Enter to close...")
-        sys.exit(1)
+        raise FileNotFoundError(f"File not found: {in_path}")
 
     raw = in_path.read_text(encoding="utf-8", errors="ignore")
+    contacts = parse_contacts(raw)
+    df = build_dataframe(contacts)
+    df.to_excel(output_file, index=False)
+    return len(df)
+
+
+def main():  # pragma: no cover - CLI convenience wrapper
     try:
-        contacts = parse_contacts(raw)
-    except ValueError as e:
+        rows = convert_contacts(INPUT_FILE, OUTPUT_FILE)
+        print(f"Wrote {rows} rows to {OUTPUT_FILE}")
+    except Exception as e:  # broad but intentional for user guidance
         print(f"Error: {e}")
         input("\nPress Enter to close...")
         sys.exit(1)
-
-    try:
-        df = build_dataframe(contacts)
-        # openpyxl is auto-used by pandas for .xlsx if installed
-        df.to_excel(OUTPUT_FILE, index=False)
-        print(f"Wrote {len(df)} rows to {OUTPUT_FILE}")
-    except Exception as e:
-        print(f"Failed to write Excel: {e}")
-        input("\nPress Enter to close...")
-        sys.exit(1)
-
     input("\nDone. Press Enter to close...")
 
+
+def launch_gui():  # pragma: no cover - GUI wrapper
+    import tkinter as tk
+    from tkinter import filedialog
+
+    root = tk.Tk()
+    root.title("Contacts to Excel")
+
+    in_var = tk.StringVar()
+    out_var = tk.StringVar()
+    status = tk.StringVar()
+
+    def browse_in():
+        path = filedialog.askopenfilename(
+            title="Select contacts.txt",
+            filetypes=[("Text files", "*.txt"), ("All files", "*.*")],
+        )
+        if path:
+            in_var.set(path)
+
+    def browse_out():
+        path = filedialog.asksaveasfilename(
+            title="Save Excel file",
+            defaultextension=".xlsx",
+            filetypes=[("Excel files", "*.xlsx"), ("All files", "*.*")],
+        )
+        if path:
+            out_var.set(path)
+
+    def do_convert():
+        status.set("Converting...")
+        root.update_idletasks()
+        try:
+            rows = convert_contacts(in_var.get(), out_var.get())
+            status.set(f"Wrote {rows} rows to {out_var.get()}")
+        except Exception as e:
+            status.set(f"Error: {e}")
+
+    tk.Label(root, text="Input file:").grid(row=0, column=0, sticky="e")
+    tk.Entry(root, textvariable=in_var, width=50).grid(row=0, column=1, padx=5)
+    tk.Button(root, text="Browse", command=browse_in).grid(row=0, column=2)
+
+    tk.Label(root, text="Output file:").grid(row=1, column=0, sticky="e")
+    tk.Entry(root, textvariable=out_var, width=50).grid(row=1, column=1, padx=5)
+    tk.Button(root, text="Save As", command=browse_out).grid(row=1, column=2)
+
+    tk.Button(root, text="Convert", command=do_convert).grid(
+        row=2, column=1, pady=10
+    )
+    tk.Label(root, textvariable=status, fg="blue").grid(row=3, column=0, columnspan=3)
+
+    root.mainloop()
+
+
 if __name__ == "__main__":
-    main()
+    if len(sys.argv) > 1 and sys.argv[1] == "--gui":
+        launch_gui()
+    else:
+        main()
