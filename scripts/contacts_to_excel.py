@@ -9,7 +9,7 @@ try:
     import pandas as pd
 except ImportError:  # pragma: no cover - user guidance path
     print("Missing dependency: pandas. Install with:\n  pip install --user pandas openpyxl")
-    input("\nPress Enter to close...")
+    print("Exiting due to missing dependency.")
     sys.exit(1)
 
 # ----- helpers to clean/parse “almost JSON” -----
@@ -108,9 +108,8 @@ def main():  # pragma: no cover - CLI convenience wrapper
         print(f"Wrote {rows} rows to {args.output}")
     except Exception as e:  # broad but intentional for user guidance
         print(f"Error: {e}")
-        input("\nPress Enter to close...")
         sys.exit(1)
-    input("\nDone. Press Enter to close...")
+    print("Done.")
 
 
 def launch_gui():  # pragma: no cover - GUI wrapper
