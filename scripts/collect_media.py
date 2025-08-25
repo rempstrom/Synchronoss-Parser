@@ -20,11 +20,11 @@ from PIL import Image, ExifTags
 from openpyxl import Workbook
 
 # -------------------------------------------------------------
-# Configuration
+# Default paths used when running as a script
 # -------------------------------------------------------------
-ROOT = Path("VZMOBILE")            # root folder containing date/device hierarchy
-COMPILED = ROOT / "Compiled Media" # output folder
-LOGFILE = ROOT / "compiled_media_log.xlsx"
+DEFAULT_ROOT = Path("VZMOBILE")
+DEFAULT_COMPILED = DEFAULT_ROOT / "Compiled Media"
+DEFAULT_LOGFILE = DEFAULT_ROOT / "compiled_media_log.xlsx"
 
 # Media file extensions to search
 MEDIA_EXTS = {".jpg", ".jpeg", ".png", ".gif", ".bmp", ".tiff", ".webp", ".mp4", ".mov"}
@@ -65,13 +65,14 @@ def ensure_unique_name(target_dir: Path, filename: str) -> Path:
 # -------------------------------------------------------------
 # Main processing
 # -------------------------------------------------------------
-def collect_media():
-    COMPILED.mkdir(exist_ok=True)
+def collect_media(root_path: Path, compiled_path: Path):
+    """Copy media from ``root_path`` into ``compiled_path`` collecting metadata."""
+    compiled_path.mkdir(exist_ok=True)
 
     records = []
     exif_keys = set()
 
-    for date_dir in sorted(ROOT.glob("20??-??-??")):           # match YYYY-MM-DD
+    for date_dir in sorted(root_path.glob("20??-??-??")):  # match YYYY-MM-DD
         if not date_dir.is_dir():
             continue
         date_str = date_dir.name
@@ -86,7 +87,7 @@ def collect_media():
                     continue
 
                 # Copy to compiled folder
-                dest = ensure_unique_name(COMPILED, media_file.name)
+                dest = ensure_unique_name(compiled_path, media_file.name)
                 shutil.copy2(media_file, dest)
 
                 # Metadata
@@ -106,7 +107,7 @@ def collect_media():
 # -------------------------------------------------------------
 # Excel logging
 # -------------------------------------------------------------
-def write_excel(records, exif_keys):
+def write_excel(records, exif_keys, logfile: Path):
     wb = Workbook()
     ws = wb.active
     ws.title = "Media Metadata"
@@ -118,13 +119,19 @@ def write_excel(records, exif_keys):
         row = [rec.get(h, "") for h in headers]
         ws.append(row)
 
-    wb.save(LOGFILE)
+    wb.save(logfile)
 
 # -------------------------------------------------------------
 if __name__ == "__main__":
-    if not ROOT.exists():
-        raise SystemExit(f"Root folder '{ROOT}' not found.")
+    root_path = DEFAULT_ROOT
+    compiled_path = DEFAULT_COMPILED
+    logfile = DEFAULT_LOGFILE
 
-    records, exif_keys = collect_media()
-    write_excel(records, exif_keys)
-    print(f"Copied {len(records)} files to '{COMPILED}' and logged metadata to '{LOGFILE}'.")
+    if not root_path.exists():
+        raise SystemExit(f"Root folder '{root_path}' not found.")
+
+    records, exif_keys = collect_media(root_path, compiled_path)
+    write_excel(records, exif_keys, logfile)
+    print(
+        f"Copied {len(records)} files from '{root_path}' to '{compiled_path}' and logged metadata to '{logfile}'."
+    )
