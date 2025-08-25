@@ -1,0 +1,5 @@
+Pillow
+openpyxl
+pandas
+
+# Note: tkinter may require OS-level installation.
