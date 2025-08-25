@@ -1,0 +1,455 @@
+#!/usr/bin/env python3
+"""
+Chat Transcript Renderer
+
+Reads message CSVs from a folder structure like:
+
+messages/
+  20240120.csv
+  20241121.csv
+  ...
+  attachments/
+    mms/
+      in/
+        2024-01-20/
+          <files>
+      out/
+        2024-01-20/
+          <files>
+    rcs/
+      in/
+        2024-11-21/
+          <files>
+      out/
+        2024-11-21/
+          <files>
+
+Each CSV must have columns: Date, Type, Direction, Attachments, Body, Sender, Recipients, Message ID
+
+This script generates one HTML transcript per CSV (chat-bubble style), plus an index.html.
+Attachments are embedded inline when possible (images/audio/video) and otherwise linked.
+The attachment lookup path is:
+  messages/attachments/{Type}/{Direction}/{YYYY-MM-DD}/{AttachmentFileName}
+where YYYY-MM-DD is derived from the CSV filename (e.g., 20241121.csv -> 2024-11-21).
+
+Usage:
+  python render_transcripts.py --in messages --out transcripts
+
+Notes:
+- HTML keeps relative links to your existing attachments (no copying).
+- Dates are sorted chronologically using best-effort parsing; the raw Date string is also shown.
+- "out" messages are right-aligned (sent), "in" are left-aligned (received).
+- Safe to run multiple times; outputs are overwritten.
+"""
+
+import argparse
+import csv
+import html
+import json
+import os
+from dataclasses import dataclass
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import List, Optional, Tuple
+
+# ------------------------- Config & Utilities -------------------------
+
+IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp"}
+VIDEO_EXTS = {".mp4", ".webm", ".ogg", ".mov", ".m4v"}
+AUDIO_EXTS = {".mp3", ".wav", ".m4a", ".aac", ".flac", ".ogg"}
+INLINE_TEXT_EXTS = {".vcard", ".vcf"}  # small text-like files we might show inline
+
+CSV_DATE_FROM_FILENAME_FMT = "%Y%m%d"
+ATTACHMENT_FOLDER_DATE_FMT = "%Y-%m-%d"
+
+CSS_STYLES = """
+:root {
+  --bg: #0f172a;           /* slate-900 */
+  --panel: #111827;        /* gray-900 */
+  --text: #e5e7eb;         /* gray-200 */
+  --muted: #9ca3af;        /* gray-400 */
+  --sent: #22c55e;         /* green-500 */
+  --sent-contrast: #052e16;/* green-950 */
+  --recv: #1f2937;         /* gray-800 */
+  --bubble-radius: 16px;
+  --max-width: 980px;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; padding: 0; background: var(--bg); color: var(--text);
+  font: 15px/1.5 system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+}
+.header {
+  position: sticky; top: 0; z-index: 10; background: linear-gradient(180deg, rgba(17,24,39,0.95), rgba(17,24,39,0.7));
+  backdrop-filter: blur(6px); border-bottom: 1px solid #1f2937; padding: 10px 16px;
+}
+.container { max-width: var(--max-width); margin: 0 auto; padding: 12px 16px 80px; }
+.thread-meta { color: var(--muted); font-size: 12px; margin-top: 2px; }
+
+.message {
+  display: flex; margin: 8px 0; gap: 10px; align-items: flex-end;
+}
+.bubble {
+  max-width: 74%; padding: 10px 12px; border-radius: var(--bubble-radius);
+  word-wrap: break-word; overflow-wrap: anywhere; box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+}
+.sent { margin-left: auto; justify-content: flex-end; }
+.sent .bubble { background: var(--sent); color: #04210e; }
+.sent .meta  { text-align: right; }
+.received .bubble { background: var(--recv); }
+
+.meta { font-size: 11px; color: var(--muted); margin-top: 6px; }
+.body-text { white-space: pre-wrap; }
+.attachments { margin-top: 8px; display: grid; gap: 8px; }
+.attachment img { max-width: 100%; border-radius: 12px; display: block; }
+.attachment video, .attachment audio { width: 100%; outline: none; }
+.attachment a { color: #93c5fd; text-decoration: none; word-break: break-all; }
+.attachment a:hover { text-decoration: underline; }
+
+.day-divider { text-align: center; margin: 18px 0; color: var(--muted); font-size: 12px; }
+.footer { position: fixed; bottom: 0; left: 0; right: 0; padding: 8px 16px; background: linear-gradient(0deg, rgba(17,24,39,0.95), rgba(17,24,39,0.6)); border-top: 1px solid #1f2937; }
+.footer a { color: #93c5fd; text-decoration: none; }
+.footer a:hover { text-decoration: underline; }
+.code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; }
+"""
+
+INDEX_CSS = """
+body { background:#0f172a; color:#e5e7eb; font: 15px/1.5 system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
+.container { max-width: 900px; margin: 0 auto; padding: 24px 16px; }
+h1 { margin: 0 0 8px; font-size: 24px; }
+.subtitle { color:#9ca3af; margin-bottom: 16px; font-size: 13px; }
+.list { display: grid; gap: 10px; }
+.item { background:#111827; border:1px solid #1f2937; border-radius: 12px; padding: 12px; }
+.item a { color:#93c5fd; text-decoration:none; font-weight:600; }
+.item a:hover { text-decoration: underline; }
+.meta { color:#9ca3af; font-size: 12px; margin-top: 4px; }
+"""
+
+@dataclass
+class Message:
+    date_raw: str
+    date_dt: Optional[datetime]
+    msg_type: str
+    direction: str
+    attachments: List[str]
+    body: str
+    sender: str
+    recipients: str
+    message_id: str
+
+
+def parse_csv_date(value: str) -> Optional[datetime]:
+    if not value:
+        return None
+    s = value.strip()
+    # Try ISO-8601 with Z
+    try:
+        if s.endswith("Z"):
+            return datetime.fromisoformat(s.replace("Z", "+00:00"))
+    except Exception:
+        pass
+    # Try plain fromisoformat
+    try:
+        return datetime.fromisoformat(s)
+    except Exception:
+        pass
+    # Try common formats
+    fmts = [
+        "%Y-%m-%d %H:%M:%S",
+        "%m/%d/%Y %H:%M:%S",
+        "%m/%d/%Y %I:%M:%S %p",
+        "%Y-%m-%dT%H:%M:%S",
+        "%Y-%m-%dT%H:%M:%S.%f%z",
+        "%Y-%m-%dT%H:%M:%S%z",
+    ]
+    for f in fmts:
+        try:
+            return datetime.strptime(s, f)
+        except Exception:
+            continue
+    # Fallback: epoch seconds or ms?
+    try:
+        n = int(s)
+        if n > 10_000_000_000:  # likely ms
+            return datetime.fromtimestamp(n/1000, tz=timezone.utc)
+        return datetime.fromtimestamp(n, tz=timezone.utc)
+    except Exception:
+        return None
+
+
+def split_attachments(field: str) -> List[str]:
+    if not field:
+        return []
+    s = field.strip()
+    # Try JSON list first
+    if (s.startswith("[") and s.endswith("]")) or (s.startswith("{") and s.endswith("}")):
+        try:
+            parsed = json.loads(s)
+            if isinstance(parsed, list):
+                return [str(x).strip() for x in parsed if str(x).strip()]
+            if isinstance(parsed, dict) and "files" in parsed:
+                return [str(x).strip() for x in parsed["files"] if str(x).strip()]
+        except Exception:
+            pass
+    # Fallback: split on common delimiters (semicolon strongest for your data)
+    parts = []
+    for chunk in s.replace("|", ";").replace(",", ";").split(";"):
+        c = chunk.strip()
+        if c:
+            parts.append(c)
+    return parts
+
+
+def derive_attachment_day_from_csv_name(csv_path: Path) -> Optional[str]:
+    """Convert 20241121.csv -> 2024-11-21"""
+    try:
+        stem = csv_path.stem  # e.g., 20241121
+        dt = datetime.strptime(stem, CSV_DATE_FROM_FILENAME_FMT)
+        return dt.strftime(ATTACHMENT_FOLDER_DATE_FMT)
+    except Exception:
+        return None
+
+
+def classify_ext(path: Path) -> str:
+    ext = path.suffix.lower()
+    if ext in IMAGE_EXTS:
+        return "image"
+    if ext in VIDEO_EXTS:
+        return "video"
+    if ext in AUDIO_EXTS:
+        return "audio"
+    if ext in INLINE_TEXT_EXTS:
+        return "inline_text"
+    return "other"
+
+
+def safe_text(s: Optional[str]) -> str:
+    if s is None:
+        return ""
+    return html.escape(str(s))
+
+
+def build_attachment_path(messages_root: Path, msg_type: str, direction: str, day_str: str, filename: str) -> Path:
+    return messages_root / "attachments" / msg_type / direction / day_str / filename
+
+
+def relpath_for_html(from_file: Path, to_target: Path) -> str:
+    try:
+        return os.path.relpath(to_target, start=from_file.parent).replace(os.sep, "/")
+    except Exception:
+        return str(to_target).replace(os.sep, "/")
+
+
+def load_messages_from_csv(csv_file: Path) -> List[Message]:
+    msgs: List[Message] = []
+    with csv_file.open("r", encoding="utf-8", newline="") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            date_raw = (row.get("Date") or "").strip()
+            date_dt = parse_csv_date(date_raw)
+            msg_type = (row.get("Type") or "").strip().lower()
+            direction = (row.get("Direction") or "").strip().lower()
+            attachments_field = row.get("Attachments")
+            attachments = split_attachments(attachments_field) if attachments_field else []
+            body = row.get("Body") or ""
+            sender = row.get("Sender") or ""
+            recipients = row.get("Recipients") or ""
+            message_id = row.get("Message ID") or ""
+            msgs.append(Message(date_raw, date_dt, msg_type, direction, attachments, body, sender, recipients, message_id))
+    # Sort chronologically with stable fallback to raw string
+    msgs.sort(key=lambda m: (m.date_dt or datetime.max.replace(tzinfo=timezone.utc), m.date_raw))
+    return msgs
+
+
+# ------------------------- HTML Rendering -------------------------
+
+def render_thread_html(csv_file: Path, messages_root: Path, out_file: Path) -> Tuple[int, int]:
+    day_folder = derive_attachment_day_from_csv_name(csv_file)
+    msgs = load_messages_from_csv(csv_file)
+
+    total = len(msgs)
+    with_attachments = 0
+
+    title = f"Chat – {csv_file.stem}"
+
+    parts: List[str] = []
+    parts.append("<!DOCTYPE html>")
+    parts.append("<html lang=\"en\">")
+    parts.append("<head>")
+    parts.append("<meta charset=\"utf-8\">")
+    parts.append("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">")
+    parts.append(f"<title>{html.escape(title)}</title>")
+    parts.append("<style>" + CSS_STYLES + "</style>")
+    parts.append("</head>")
+    parts.append("<body>")
+
+    parts.append("<div class=\"header\">")
+    parts.append(f"  <div class=\"container\"><div><strong>{html.escape(title)}</strong></div>")
+    parts.append(f"  <div class=\"thread-meta\">Source CSV: <span class=\"code\">{html.escape(str(csv_file))}</span></div>")
+    parts.append("  </div>")
+    parts.append("</div>")
+
+    parts.append("<div class=\"container\">")
+
+    current_day: Optional[str] = None
+
+    for m in msgs:
+        # Day divider (based on local date of parsed datetime if available, else raw)
+        day_label = None
+        if m.date_dt:
+            day_label = m.date_dt.astimezone().strftime("%A, %B %d, %Y")
+        elif m.date_raw:
+            # Try to grab just the date part
+            day_label = m.date_raw.split("T")[0]
+        if day_label and day_label != current_day:
+            current_day = day_label
+            parts.append(f"<div class=\"day-divider\">{html.escape(current_day)}</div>")
+
+        side_class = "sent" if m.direction == "out" else "received"
+        parts.append(f"<div class=\"message {side_class}\">")
+        parts.append("  <div class=\"bubble\">")
+
+        body_html = safe_text(m.body)
+        if body_html:
+            parts.append(f"    <div class=\"body-text\">{body_html}</div>")
+
+        # Attachments
+        attachment_snippets: List[str] = []
+        if m.attachments:
+            for fname in m.attachments:
+                if not fname or fname.lower() in {"null", "null.txt", "none", "(null)", "aaaa"}:
+                    continue
+                if not day_folder:
+                    continue
+                target = build_attachment_path(messages_root, m.msg_type or "", m.direction or "", day_folder, fname)
+                if not target.exists():
+                    # Some exports stash attachments without the dated subfolder; check fallback path
+                    alt = messages_root / "attachments" / (m.msg_type or "") / (m.direction or "") / fname
+                    chosen = target if target.exists() else (alt if alt.exists() else None)
+                else:
+                    chosen = target
+
+                if chosen is None:
+                    # Show a small missing-note so you know there *was* an attachment reference
+                    attachment_snippets.append(
+                        f"<div class=\"attachment\"><em class=\"meta\">(missing attachment: {html.escape(fname)})</em></div>"
+                    )
+                    continue
+
+                kind = classify_ext(chosen)
+                rel = relpath_for_html(out_file, chosen)
+                if kind == "image":
+                    attachment_snippets.append(
+                        f"<div class=\"attachment\"><img loading=\"lazy\" src=\"{rel}\" alt=\"{html.escape(fname)}\"></div>"
+                    )
+                elif kind == "video":
+                    attachment_snippets.append(
+                        f"<div class=\"attachment\"><video controls preload=\"metadata\" src=\"{rel}\"></video></div>"
+                    )
+                elif kind == "audio":
+                    attachment_snippets.append(
+                        f"<div class=\"attachment\"><audio controls preload=\"metadata\" src=\"{rel}\"></audio></div>"
+                    )
+                elif kind == "inline_text":
+                    try:
+                        text = chosen.read_text(encoding="utf-8", errors="replace")
+                        text = html.escape(text)
+                        attachment_snippets.append(
+                            f"<div class=\"attachment\"><pre class=\"code\" style=\"white-space:pre-wrap\">{text}</pre></div>"
+                        )
+                    except Exception:
+                        attachment_snippets.append(
+                            f"<div class=\"attachment\"><a href=\"{rel}\" download>{html.escape(fname)}</a></div>"
+                        )
+                else:
+                    attachment_snippets.append(
+                        f"<div class=\"attachment\"><a href=\"{rel}\" download>{html.escape(fname)}</a></div>"
+                    )
+            if attachment_snippets:
+                with_attachments += 1
+                parts.append("    <div class=\"attachments\">")
+                parts.extend(["      " + s for s in attachment_snippets])
+                parts.append("    </div>")
+
+        # Meta line
+        if m.date_dt:
+            local_str = m.date_dt.astimezone().strftime("%Y-%m-%d %H:%M:%S %Z")
+            parts.append(f"    <div class=\"meta\">{html.escape(local_str)} · {html.escape(m.direction)} · {html.escape(m.msg_type)}</div>")
+        else:
+            parts.append(f"    <div class=\"meta\">{html.escape(m.date_raw)} · {html.escape(m.direction)} · {html.escape(m.msg_type)}</div>")
+
+        parts.append("  </div>")  # bubble
+        parts.append("</div>")    # message
+
+    parts.append("</div>")  # container
+
+    parts.append("<div class=\"footer\">")
+    parts.append("  <div class=\"container\">Return to <a href=\"index.html\">index</a></div>")
+    parts.append("</div>")
+
+    parts.append("</body></html>")
+
+    out_file.parent.mkdir(parents=True, exist_ok=True)
+    out_file.write_text("\n".join(parts), encoding="utf-8")
+
+    return total, with_attachments
+
+
+# ------------------------- Index Page -------------------------
+
+def write_index(out_dir: Path, entries: List[Tuple[str, str, int, int]]):
+    # entries: list of (title, rel_path, msg_count, with_attach_count)
+    lines: List[str] = []
+    lines.append("<!DOCTYPE html>")
+    lines.append("<html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">")
+    lines.append("<title>Message Transcripts</title>")
+    lines.append(f"<style>{INDEX_CSS}</style>")
+    lines.append("</head><body>")
+    lines.append("<div class=\"container\">")
+    lines.append("  <h1>Message Transcripts</h1>")
+    lines.append("  <div class=\"subtitle\">One HTML per CSV. Click to view. (Times shown in local system timezone inside each transcript.)</div>")
+    lines.append("  <div class=\"list\">")
+    for title, rel, c, ca in entries:
+        lines.append("    <div class=\"item\">")
+        lines.append(f"      <a href=\"{html.escape(rel)}\">{html.escape(title)}</a>")
+        lines.append(f"      <div class=\"meta\">Messages: {c} · Messages with attachments: {ca}</div>")
+        lines.append("    </div>")
+    lines.append("  </div>")
+    lines.append("</div>")
+    lines.append("</body></html>")
+    (out_dir / "index.html").write_text("\n".join(lines), encoding="utf-8")
+
+
+# ------------------------- Main -------------------------
+
+def main():
+    ap = argparse.ArgumentParser(description="Render chat transcripts from CSVs into HTML.")
+    ap.add_argument("--in", dest="in_dir", required=True, help="Input root folder (expects CSVs inside, plus attachments/...) e.g. messages")
+    ap.add_argument("--out", dest="out_dir", required=True, help="Output folder for HTML transcripts, e.g. transcripts")
+    args = ap.parse_args()
+
+    messages_root = Path(args.in_dir).resolve()
+    out_root = Path(args.out_dir).resolve()
+    out_root.mkdir(parents=True, exist_ok=True)
+
+    csv_files = sorted(messages_root.glob("*.csv"))
+    if not csv_files:
+        print(f"No CSV files found in {messages_root}")
+        return
+
+    index_entries: List[Tuple[str, str, int, int]] = []
+
+    for csv_file in csv_files:
+        title = f"Chat – {csv_file.stem}"
+        out_file = out_root / f"thread-{csv_file.stem}.html"
+        total, with_attachments = render_thread_html(csv_file, messages_root, out_file)
+        rel = os.path.relpath(out_file, start=out_root).replace(os.sep, "/")
+        index_entries.append((title, rel, total, with_attachments))
+        print(f"Rendered {csv_file.name}: {total} messages ({with_attachments} with attachments)")
+
+    write_index(out_root, index_entries)
+    print(f"\nDone. Open: {out_root / 'index.html'}")
+
+
+if __name__ == "__main__":
+    main()
