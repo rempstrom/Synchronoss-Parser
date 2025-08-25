@@ -30,7 +30,6 @@ from tkinter import filedialog, ttk
 
 # Local modules
 from collect_media import collect_media, write_excel
-import collect_media as cm
 from contacts_to_excel import convert_contacts
 import render_transcripts as rt
 
@@ -46,39 +45,59 @@ def build_collect_media_tab(nb: ttk.Notebook) -> None:
     frame = ttk.Frame(nb)
     nb.add(frame, text="Collect Media")
 
-    path_var = tk.StringVar(value=str(cm.ROOT))
+    in_var = tk.StringVar()
+    out_var = tk.StringVar()
     status_var = tk.StringVar()
     progress = ttk.Progressbar(frame, mode="indeterminate")
 
-    def browse() -> None:
-        path = filedialog.askdirectory(initialdir=path_var.get() or ".")
+    def browse_in() -> None:
+        path = filedialog.askdirectory(initialdir=in_var.get() or ".")
         if path:
-            path_var.set(path)
+            in_var.set(path)
+
+    def browse_out() -> None:
+        path = filedialog.askdirectory(initialdir=out_var.get() or ".")
+        if path:
+            out_var.set(path)
 
     def run() -> None:
         progress.start()
 
         def task() -> None:
-            root_path = Path(path_var.get()).expanduser()
+            root_path = Path(in_var.get()).expanduser()
+            compiled_path = Path(out_var.get()).expanduser()
+
             if not root_path.exists():
                 frame.after(
                     0,
                     lambda: [
-                        status_var.set(f"Path '{root_path}' does not exist."),
+                        status_var.set(f"Input folder '{root_path}' does not exist."),
                         progress.stop(),
                     ],
                 )
                 return
 
-            cm.ROOT = root_path
-            cm.COMPILED = root_path / "Compiled Media"
-            cm.LOGFILE = root_path / "compiled_media_log.xlsx"
             try:
-                records, exif_keys = collect_media()
-                write_excel(records, exif_keys)
+                compiled_path.mkdir(parents=True, exist_ok=True)
+            except Exception as e:
+                frame.after(
+                    0,
+                    lambda: [
+                        status_var.set(
+                            f"Could not create output folder '{compiled_path}': {e}"
+                        ),
+                        progress.stop(),
+                    ],
+                )
+                return
+
+            logfile = compiled_path / "compiled_media_log.xlsx"
+            try:
+                records, exif_keys = collect_media(root_path, compiled_path)
+                write_excel(records, exif_keys, logfile)
                 msg = (
-                    f"Copied {len(records)} files to '{cm.COMPILED}' and "
-                    f"logged to '{cm.LOGFILE}'."
+                    f"Copied {len(records)} files from '{root_path}' to '{compiled_path}' and "
+                    f"logged to '{logfile}'."
                 )
             except Exception as e:  # pragma: no cover - user feedback
                 msg = f"Error: {e}"
@@ -87,22 +106,32 @@ def build_collect_media_tab(nb: ttk.Notebook) -> None:
 
         threading.Thread(target=task, daemon=True).start()
 
-    ttk.Label(frame, text="Root folder:").grid(
+    ttk.Label(frame, text="Input folder:").grid(
         row=0, column=0, sticky="e", padx=5, pady=5
     )
-    ttk.Entry(frame, textvariable=path_var, width=50).grid(
+    ttk.Entry(frame, textvariable=in_var, width=50).grid(
         row=0, column=1, padx=5, pady=5
     )
-    ttk.Button(frame, text="Browse", command=browse).grid(
+    ttk.Button(frame, text="Browse", command=browse_in).grid(
         row=0, column=2, padx=5, pady=5
     )
 
-    ttk.Button(frame, text="Run", command=run).grid(row=1, column=1, pady=10)
+    ttk.Label(frame, text="Output folder:").grid(
+        row=1, column=0, sticky="e", padx=5, pady=5
+    )
+    ttk.Entry(frame, textvariable=out_var, width=50).grid(
+        row=1, column=1, padx=5, pady=5
+    )
+    ttk.Button(frame, text="Browse", command=browse_out).grid(
+        row=1, column=2, padx=5, pady=5
+    )
 
-    progress.grid(row=2, column=0, columnspan=3, sticky="ew", padx=5)
+    ttk.Button(frame, text="Run", command=run).grid(row=2, column=1, pady=10)
+
+    progress.grid(row=3, column=0, columnspan=3, sticky="ew", padx=5)
 
     ttk.Label(frame, textvariable=status_var, wraplength=400, justify="left").grid(
-        row=3, column=0, columnspan=3, padx=5, pady=5
+        row=4, column=0, columnspan=3, padx=5, pady=5
     )
 
 
