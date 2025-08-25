@@ -11,7 +11,8 @@ Tabs provided:
 * **Collect Media** – wraps ``collect_media.collect_media`` and
   ``collect_media.write_excel``.
 * **Contacts to Excel** – wraps ``contacts_to_excel.convert_contacts``.
-* **Render Transcripts** – wraps ``render_transcripts.main``.
+* **Render Transcripts** – wraps ``render_transcripts.main`` and includes
+  an entry for the target phone number.
 
 The script can be packaged as a standalone executable with PyInstaller:
 
@@ -167,13 +168,18 @@ def build_contacts_tab(nb: ttk.Notebook) -> None:
 
 
 def build_render_tab(nb: ttk.Notebook) -> None:
-    """Add the Render Transcripts UI to ``nb``."""
+    """Add the Render Transcripts UI to ``nb``.
+
+    Allows the user to specify the target phone number whose messages should
+    be labeled in the transcript output.
+    """
 
     frame = ttk.Frame(nb)
     nb.add(frame, text="Render Transcripts")
 
     in_var = tk.StringVar()
     out_var = tk.StringVar()
+    target_var = tk.StringVar()
     status_var = tk.StringVar()
     progress = ttk.Progressbar(frame, mode="indeterminate")
 
@@ -188,6 +194,11 @@ def build_render_tab(nb: ttk.Notebook) -> None:
             out_var.set(path)
 
     def render() -> None:
+        target = target_var.get().strip()
+        if not (target and target.isdigit() and len(target) == 11):
+            status_var.set("Target phone number must be an 11-digit number.")
+            return
+
         progress.start()
         status_var.set("Rendering...")
 
@@ -200,6 +211,8 @@ def build_render_tab(nb: ttk.Notebook) -> None:
                     in_var.get(),
                     "--out",
                     out_var.get(),
+                    "--target-number",
+                    target,
                 ]
                 rt.main()
                 msg = f"Rendered transcripts to '{out_var.get()}'"
@@ -232,12 +245,19 @@ def build_render_tab(nb: ttk.Notebook) -> None:
         row=1, column=2, padx=5, pady=5
     )
 
-    ttk.Button(frame, text="Render", command=render).grid(row=2, column=1, pady=10)
+    ttk.Label(frame, text="Target phone number (11 digits):").grid(
+        row=2, column=0, sticky="e", padx=5, pady=5
+    )
+    ttk.Entry(frame, textvariable=target_var, width=20).grid(
+        row=2, column=1, padx=5, pady=5, sticky="w"
+    )
 
-    progress.grid(row=3, column=0, columnspan=3, sticky="ew", padx=5)
+    ttk.Button(frame, text="Render", command=render).grid(row=3, column=1, pady=10)
+
+    progress.grid(row=4, column=0, columnspan=3, sticky="ew", padx=5)
 
     ttk.Label(frame, textvariable=status_var, wraplength=400, justify="left").grid(
-        row=4, column=0, columnspan=3, padx=5, pady=5
+        row=5, column=0, columnspan=3, padx=5, pady=5
     )
 
 
