@@ -52,6 +52,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Optional, Tuple
 
+from openpyxl import Workbook
+
 # ------------------------- Config & Utilities -------------------------
 
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp"}
@@ -263,9 +265,8 @@ def load_messages_from_csv(csv_file: Path) -> List[Message]:
 
 # ------------------------- HTML Rendering -------------------------
 
-def render_thread_html(csv_file: Path, messages_root: Path, out_file: Path) -> Tuple[int, int]:
+def render_thread_html(csv_file: Path, messages_root: Path, out_file: Path, msgs: List[Message]) -> Tuple[int, int]:
     day_folder = derive_attachment_day_from_csv_name(csv_file)
-    msgs = load_messages_from_csv(csv_file)
 
     total = len(msgs)
     with_attachments = 0
@@ -426,6 +427,7 @@ def main():
     ap = argparse.ArgumentParser(description="Render chat transcripts from CSVs into HTML.")
     ap.add_argument("--in", dest="in_dir", required=True, help="Input root folder (expects CSVs inside, plus attachments/...) e.g. messages")
     ap.add_argument("--out", dest="out_dir", required=True, help="Output folder for HTML transcripts, e.g. transcripts")
+    ap.add_argument("--target", default="", help="Phone number of the target user")
     args = ap.parse_args()
 
     messages_root = Path(args.in_dir).resolve()
@@ -438,16 +440,41 @@ def main():
         return
 
     index_entries: List[Tuple[str, str, int, int]] = []
+    call_records: List[Message] = []
 
     for csv_file in csv_files:
+        msgs = load_messages_from_csv(csv_file)
+        call_msgs = [m for m in msgs if m.msg_type == "call"]
+        other_msgs = [m for m in msgs if m.msg_type != "call"]
+
+        for m in call_msgs:
+            if not m.sender:
+                m.sender = args.target
+            if not m.recipients:
+                m.recipients = args.target
+        call_records.extend(call_msgs)
+
         title = f"Chat – {csv_file.stem}"
         out_file = out_root / f"thread-{csv_file.stem}.html"
-        total, with_attachments = render_thread_html(csv_file, messages_root, out_file)
+        total, with_attachments = render_thread_html(csv_file, messages_root, out_file, other_msgs)
         rel = os.path.relpath(out_file, start=out_root).replace(os.sep, "/")
         index_entries.append((title, rel, total, with_attachments))
         print(f"Rendered {csv_file.name}: {total} messages ({with_attachments} with attachments)")
 
     write_index(out_root, index_entries)
+
+    call_log_path = out_root / "Call Log.xlsx"
+    wb = Workbook()
+    ws = wb.active
+    ws.append(["Date", "Direction", "Sender", "Recipients", "Message ID"])
+    for m in call_records:
+        if m.date_dt:
+            date_str = m.date_dt.astimezone().strftime("%Y-%m-%d %H:%M:%S %Z")
+        else:
+            date_str = m.date_raw
+        ws.append([date_str, m.direction, m.sender, m.recipients, m.message_id])
+    wb.save(call_log_path)
+
     print(f"\nDone. Open: {out_root / 'index.html'}")
 
 
