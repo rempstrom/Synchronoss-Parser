@@ -1,12 +1,7 @@
 #!/usr/bin/env python3
-# contacts_to_excel.py — no-arg, hardcoded paths version
+"""Convert Synchronoss contacts exports to Excel files."""
 
-# ==== EDIT THESE TWO LINES ====
-INPUT_FILE  = r"C:\Users\Frosty\Desktop\CASE FOLDER\OPEN\LD07QR25LD00XX - CT #182193209 - Synchronoss -\Analyzed Synchronoss Data\Contacts Python Process\contacts_20250716.txt"
-OUTPUT_FILE = r"C:\Users\Frosty\Desktop\CASE FOLDER\OPEN\LD07QR25LD00XX - CT #182193209 - Synchronoss -\Analyzed Synchronoss Data\Contacts Python Process\contacts.xlsx"
-# ==============================
-
-import sys, re, json
+import sys, re, json, argparse
 from pathlib import Path
 
 # Try imports and give friendly guidance if packages aren't installed
@@ -103,9 +98,14 @@ def convert_contacts(input_file: str, output_file: str) -> int:
 
 
 def main():  # pragma: no cover - CLI convenience wrapper
+    parser = argparse.ArgumentParser(description="Convert Synchronoss contacts dump to Excel.")
+    parser.add_argument("--input", required=True, help="Path to contacts.txt")
+    parser.add_argument("--output", required=True, help="Path to output .xlsx file")
+    args = parser.parse_args()
+
     try:
-        rows = convert_contacts(INPUT_FILE, OUTPUT_FILE)
-        print(f"Wrote {rows} rows to {OUTPUT_FILE}")
+        rows = convert_contacts(args.input, args.output)
+        print(f"Wrote {rows} rows to {args.output}")
     except Exception as e:  # broad but intentional for user guidance
         print(f"Error: {e}")
         input("\nPress Enter to close...")
