@@ -16,7 +16,11 @@ Outputs:
 from pathlib import Path
 import hashlib
 import shutil
+from fractions import Fraction
+from datetime import datetime
+import numbers
 from PIL import Image, ExifTags
+from PIL.TiffImagePlugin import IFDRational
 from openpyxl import Workbook
 
 # -------------------------------------------------------------
@@ -40,6 +44,29 @@ def md5sum(path: Path) -> str:
             h.update(chunk)
     return h.hexdigest()
 
+
+def normalize_exif_value(value):
+    """Convert EXIF values to Excel-friendly primitive types."""
+    if isinstance(value, (IFDRational, Fraction)):
+        try:
+            return float(value)
+        except Exception:
+            return str(value)
+    if isinstance(value, (list, tuple)):
+        return ", ".join(str(normalize_exif_value(v)) for v in value)
+    if isinstance(value, bytes):
+        try:
+            return value.decode("utf-8", errors="replace")
+        except Exception:
+            return str(value)
+    if isinstance(value, datetime):
+        return value
+    if isinstance(value, (str, int, float, bool)):
+        return value
+    if isinstance(value, numbers.Number):
+        return float(value)
+    return str(value)
+
 def extract_exif(path: Path) -> dict:
     """
     Extract EXIF data from an image (if any).
@@ -47,7 +74,8 @@ def extract_exif(path: Path) -> dict:
     """
     try:
         with Image.open(path) as img:
-            return {ExifTags.TAGS.get(k, k): v for k, v in img.getexif().items()}
+            raw = {ExifTags.TAGS.get(k, k): v for k, v in img.getexif().items()}
+            return {k: normalize_exif_value(v) for k, v in raw.items()}
     except Exception:
         return {}
 
@@ -97,9 +125,14 @@ def collect_media(root_path: Path, compiled_path: Path):
                     "File Name": dest.name,
                     "Date": date_str,
                     "Device": device_name,
-                    "MD5": md5sum(media_file)
+                    "MD5": md5sum(media_file),
                 }
                 record.update(exif)
+                for k, v in list(record.items()):
+                    value = normalize_exif_value(v)
+                    if not isinstance(value, (str, int, float, bool, datetime)):
+                        value = str(value)
+                    record[k] = value
                 records.append(record)
 
     return records, sorted(exif_keys)
