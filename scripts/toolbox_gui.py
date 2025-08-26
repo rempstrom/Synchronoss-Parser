@@ -369,7 +369,7 @@ def build_attachment_log_tab(nb: ttk.Notebook) -> None:
 
         threading.Thread(target=task, daemon=True).start()
 
-    ttk.Label(frame, text="Messages folder:").grid(
+    ttk.Label(frame, text="'Messages' Folder Path:").grid(
         row=0, column=0, sticky="e", padx=5, pady=5
     )
     ttk.Entry(frame, textvariable=messages_var, width=50).grid(
