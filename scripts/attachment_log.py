@@ -17,6 +17,7 @@ directory and writes outputs under ``Attachment Log``.
 import argparse
 import csv
 import html
+import logging
 import os
 from pathlib import Path
 from typing import List, Tuple
@@ -71,6 +72,22 @@ def collect_attachments(messages_root: Path) -> List[AttachmentEntry]:
     return entries
 
 
+def create_thumbnail(src: Path, dest: Path, size: Tuple[int, int] = (128, 128)) -> bool:
+    """Create a thumbnail image.
+
+    Returns ``True`` on success, ``False`` if the source cannot be processed
+    as an image or the thumbnail cannot be written.
+    """
+    try:
+        with Image.open(src) as img:
+            img.thumbnail(size)
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            img.save(dest)
+        return True
+    except Exception:
+        return False
+
+
 def generate_log(messages_root: Path, out_dir: Path) -> None:
     entries = collect_attachments(messages_root)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -86,12 +103,8 @@ def generate_log(messages_root: Path, out_dir: Path) -> None:
         ws.append([fname, sender, recipient])
         attach_path = build_attachment_path(messages_root, msg_type, direction, day, fname)
         thumb_path = thumb_dir / msg_type / direction / day / fname
-        try:
-            with Image.open(attach_path) as img:
-                img.thumbnail((128, 128))
-                thumb_path.parent.mkdir(parents=True, exist_ok=True)
-                img.save(thumb_path)
-        except Exception:
+        if not create_thumbnail(attach_path, thumb_path):
+            logging.warning("Failed to create thumbnail for %s", attach_path)
             thumb_path = None
         html_rows.append((fname, sender, recipient, attach_path, thumb_path))
 
