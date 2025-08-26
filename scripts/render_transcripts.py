@@ -100,6 +100,7 @@ body {
 .received .bubble { background: var(--recv); }
 
 .meta { font-size: 11px; color: var(--muted); margin-top: 6px; }
+.missing { color: var(--muted); font-style: italic; }
 .body-text { white-space: pre-wrap; }
 .attachments { margin-top: 8px; display: grid; gap: 8px; }
 .attachment img { max-width: 100%; border-radius: 12px; display: block; }
@@ -390,7 +391,7 @@ def render_thread_html(
                 if chosen is None:
                     # Show a small missing-note so you know there *was* an attachment reference
                     attachment_snippets.append(
-                        f"<div class=\"attachment\"><em class=\"meta\">(missing attachment: {html.escape(fname)})</em></div>"
+                        f"<div class=\"attachment\"><em class=\"meta missing\">(missing attachment: {html.escape(fname)})</em></div>"
                     )
                     continue
 
@@ -428,6 +429,12 @@ def render_thread_html(
                 parts.append("    <div class=\"attachments\">")
                 parts.extend(["      " + s for s in attachment_snippets])
                 parts.append("    </div>")
+
+        if not body_html and not attachment_snippets:
+            placeholder = (
+                f"NO CONTENT AVAILABLE FOR THIS {(m.msg_type or '').upper()} MESSAGE - LOG ONLY"
+            )
+            parts.append(f"    <div class=\"body-text missing\">{html.escape(placeholder)}</div>")
 
         # Meta line
         if m.date_dt:
