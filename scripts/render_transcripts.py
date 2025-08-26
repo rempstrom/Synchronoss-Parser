@@ -440,9 +440,10 @@ def render_thread_html(
                 parts.extend(["      " + s for s in attachment_snippets])
                 parts.append("    </div>")
 
-        if m.msg_type == "mms" and not attachment_snippets:
+        msg_type = (m.msg_type or "unknown").upper()
+        if msg_type == "MMS" and not attachment_snippets:
             parts.append(
-                "    <div class=\"body-text missing\">NO ATTACHMENT AVAILABLE - LOG ONLY</div>"
+                f"    <div class=\"body-text missing\">NO {msg_type} ATTACHMENT AVAILABLE - LOG ONLY</div>"
             )
 
         # Meta line
