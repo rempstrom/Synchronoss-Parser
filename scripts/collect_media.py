@@ -29,6 +29,7 @@ from openpyxl import Workbook
 DEFAULT_ROOT = Path("VZMOBILE")
 DEFAULT_COMPILED = DEFAULT_ROOT / "Compiled Media"
 DEFAULT_LOGFILE = DEFAULT_ROOT / "compiled_media_log.xlsx"
+LOGFILE = DEFAULT_LOGFILE
 
 # Media file extensions to search
 MEDIA_EXTS = {".jpg", ".jpeg", ".png", ".gif", ".bmp", ".tiff", ".webp", ".mp4", ".mov"}
@@ -140,7 +141,8 @@ def collect_media(root_path: Path, compiled_path: Path):
 # -------------------------------------------------------------
 # Excel logging
 # -------------------------------------------------------------
-def write_excel(records, exif_keys, logfile: Path):
+def write_excel(records, exif_keys, logfile: Path | None = None):
+    logfile = logfile or LOGFILE
     wb = Workbook()
     ws = wb.active
     ws.title = "Media Metadata"
