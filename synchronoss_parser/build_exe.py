@@ -10,7 +10,7 @@ from pathlib import Path
 import subprocess
 
 HERE = Path(__file__).resolve().parent
-SPEC_FILES = [HERE / 'toolbox_gui.spec', HERE / 'collect_media_gui.spec']
+SPEC_FILES = [HERE / 'toolbox_gui.spec']
 
 
 def main() -> None:
