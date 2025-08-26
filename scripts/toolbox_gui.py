@@ -208,6 +208,7 @@ def build_render_tab(nb: ttk.Notebook) -> None:
 
     in_var = tk.StringVar()
     out_var = tk.StringVar()
+    contacts_var = tk.StringVar()
     target_var = tk.StringVar()
     status_var = tk.StringVar()
     progress = ttk.Progressbar(frame, mode="indeterminate")
@@ -222,10 +223,23 @@ def build_render_tab(nb: ttk.Notebook) -> None:
         if path:
             out_var.set(path)
 
+    def browse_contacts() -> None:
+        path = filedialog.askopenfilename(
+            title="Select contacts Excel file",
+            filetypes=[("Excel files", "*.xlsx"), ("All files", "*.*")],
+        )
+        if path:
+            contacts_var.set(path)
+
     def render() -> None:
         target = target_var.get().strip()
         if not (target and target.isdigit() and len(target) == 11):
             status_var.set("Target phone number must be an 11-digit number.")
+            return
+
+        contacts_path = Path(contacts_var.get()).expanduser()
+        if not (contacts_var.get() and contacts_path.is_file()):
+            status_var.set(f"Contacts file '{contacts_path}' does not exist.")
             return
 
         progress.start()
@@ -242,6 +256,8 @@ def build_render_tab(nb: ttk.Notebook) -> None:
                     out_var.get(),
                     "--target-number",
                     target,
+                    "--contacts-xlsx",
+                    contacts_path.as_posix(),
                 ]
                 rt.main()
                 msg = f"Rendered transcripts to '{out_var.get()}'"
@@ -274,19 +290,29 @@ def build_render_tab(nb: ttk.Notebook) -> None:
         row=1, column=2, padx=5, pady=5
     )
 
-    ttk.Label(frame, text="Target phone number (11 digits):").grid(
+    ttk.Label(frame, text="Contacts file:").grid(
         row=2, column=0, sticky="e", padx=5, pady=5
     )
-    ttk.Entry(frame, textvariable=target_var, width=20).grid(
-        row=2, column=1, padx=5, pady=5, sticky="w"
+    ttk.Entry(frame, textvariable=contacts_var, width=50).grid(
+        row=2, column=1, padx=5, pady=5
+    )
+    ttk.Button(frame, text="Browse", command=browse_contacts).grid(
+        row=2, column=2, padx=5, pady=5
     )
 
-    ttk.Button(frame, text="Render", command=render).grid(row=3, column=1, pady=10)
+    ttk.Label(frame, text="Target phone number (11 digits):").grid(
+        row=3, column=0, sticky="e", padx=5, pady=5
+    )
+    ttk.Entry(frame, textvariable=target_var, width=20).grid(
+        row=3, column=1, padx=5, pady=5, sticky="w"
+    )
 
-    progress.grid(row=4, column=0, columnspan=3, sticky="ew", padx=5)
+    ttk.Button(frame, text="Render", command=render).grid(row=4, column=1, pady=10)
+
+    progress.grid(row=5, column=0, columnspan=3, sticky="ew", padx=5)
 
     ttk.Label(frame, textvariable=status_var, wraplength=400, justify="left").grid(
-        row=5, column=0, columnspan=3, padx=5, pady=5
+        row=6, column=0, columnspan=3, padx=5, pady=5
     )
 
 
