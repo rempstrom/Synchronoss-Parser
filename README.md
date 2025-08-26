@@ -42,6 +42,26 @@ Copy media from a Verizon Mobile backup into a single folder and log EXIF metada
 python scripts/collect_media.py
 ```
 
+### collect_attachments.py
+Collect message attachments from a Synchronoss export into a single folder and log metadata to
+Excel.
+
+The script scans the `messages/attachments/` directory:
+
+```
+messages/
+  attachments/
+    mms/in/<YYYY-MM-DD>/<files>
+    mms/out/<YYYY-MM-DD>/<files>
+```
+
+All files are copied to `Compiled Attachments/` and their details recorded in
+`Compiled Attachments/compiled_attachment_log/compiled_attachment_log.xlsx`.
+
+```bash
+python scripts/collect_attachments.py
+```
+
 ### contacts_to_excel.py
 Convert a `contacts.txt` export to an Excel spreadsheet.
 
