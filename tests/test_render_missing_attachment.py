@@ -26,5 +26,5 @@ def test_mms_without_attachment_renders_placeholder(tmp_path):
     assert with_attach == 0
 
     html = out_file.read_text()
-    assert "<div class=\"body-text missing\">NO ATTACHMENT AVAILABLE - LOG ONLY</div>" in html
+    assert "<div class=\"body-text missing\">NO MMS ATTACHMENT AVAILABLE - LOG ONLY</div>" in html
 
