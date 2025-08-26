@@ -110,7 +110,7 @@ def build_collect_media_tab(nb: ttk.Notebook) -> None:
 
         threading.Thread(target=task, daemon=True).start()
 
-    ttk.Label(frame, text="Input folder:").grid(
+    ttk.Label(frame, text="'VZMOBILE' Folder Path:").grid(
         row=0, column=0, sticky="e", padx=5, pady=5
     )
     ttk.Entry(frame, textvariable=in_var, width=50).grid(

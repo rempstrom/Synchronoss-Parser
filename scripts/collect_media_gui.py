@@ -55,7 +55,7 @@ def main():
         finally:
             progress.stop()
 
-    tk.Label(window, text="Input folder:").grid(row=0, column=0, sticky="e", padx=5, pady=5)
+    tk.Label(window, text="'VZMOBILE' Folder Path:").grid(row=0, column=0, sticky="e", padx=5, pady=5)
     tk.Entry(window, textvariable=in_var, width=50).grid(row=0, column=1, padx=5)
     tk.Button(window, text="Browse", command=browse_in).grid(row=0, column=2, padx=5)
 
