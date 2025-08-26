@@ -4,11 +4,11 @@ Utility scripts for working with Synchronoss data exports.
 
 ## merge_contacts_logs.py
 
-Merge a call log CSV with a contacts Excel file to annotate phone numbers with
+Merge a call log CSV (`Call Log/call_log.csv`) with a contacts Excel file to annotate phone numbers with
 names.
 
 ```bash
-python scripts/merge_contacts_logs.py --call-log call_log.csv --contacts-xlsx contacts.xlsx
+python scripts/merge_contacts_logs.py --call-log 'Call Log/call_log.csv' --contacts-xlsx contacts.xlsx
 ```
 
 The script writes `call_log_named.csv` alongside the original log and adds
