@@ -97,8 +97,10 @@ body {
 .sent { margin-left: auto; justify-content: flex-end; }
 .sent .bubble { background: var(--sent); color: #04210e; }
 .sent .meta  { text-align: right; }
+.sent .sender { text-align: right; }
 .received .bubble { background: var(--recv); }
 
+.sender { font-size: 16px; font-weight: 700; margin-bottom: 4px; }
 .meta { font-size: 11px; color: var(--muted); margin-top: 6px; }
 .body-text { white-space: pre-wrap; }
 .attachments { margin-top: 8px; display: grid; gap: 8px; }
@@ -364,6 +366,10 @@ def render_thread_html(
         side_class = "sent" if m.direction == "out" else "received"
         parts.append(f"<div class=\"message {side_class}\">")
         parts.append("  <div class=\"bubble\">")
+
+        sender = safe_text(m.sender)
+        if sender:
+            parts.append(f"    <div class=\"sender\">{sender}</div>")
 
         body_html = safe_text(m.body)
         if body_html:
