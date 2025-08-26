@@ -33,7 +33,7 @@ The attachment lookup path is:
 where YYYY-MM-DD is derived from the CSV filename (e.g., 20241121.csv -> 2024-11-21).
 
 Usage:
-  python scripts/render_transcripts.py --in messages --out transcripts [--contacts-xlsx contacts.xlsx]
+  render-transcripts --in messages --out transcripts [--contacts-xlsx contacts.xlsx]
 
 Notes:
 - HTML keeps relative links to your existing attachments (no copying).

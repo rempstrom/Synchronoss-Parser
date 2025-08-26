@@ -5,7 +5,7 @@ import pandas as pd
 import pytest
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
-from scripts.render_transcripts import (
+from synchronoss_parser.render_transcripts import (
     Message,
     build_contact_lookup,
     normalize_phone_number,

@@ -2,7 +2,7 @@ import sys
 from pathlib import Path
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
-from scripts.render_transcripts import Message, render_thread_html
+from synchronoss_parser.render_transcripts import Message, render_thread_html
 
 
 def test_mms_without_attachment_renders_placeholder(tmp_path):

@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
-from scripts.render_transcripts import Message, render_thread_html
+from synchronoss_parser.render_transcripts import Message, render_thread_html
 
 
 @pytest.mark.parametrize("msg_type", ["sms", "mms", "rcs"])

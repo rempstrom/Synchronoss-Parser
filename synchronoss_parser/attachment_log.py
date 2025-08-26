@@ -7,8 +7,8 @@ are written to an Excel workbook and an accompanying HTML table with
 thumbnails of image attachments.
 
 Usage:
-    python scripts/attachment_log.py [--messages DIR] [--out DIR]
-    python -m scripts.attachment_log [--messages DIR] [--out DIR]
+    attachment-log [--messages DIR] [--out DIR]
+    python -m synchronoss_parser.attachment_log [--messages DIR] [--out DIR]
 
 By default it expects a ``messages`` folder in the current working
 directory and writes outputs under ``Attachment Log``.
@@ -25,20 +25,12 @@ from typing import List, Tuple
 from openpyxl import Workbook
 from PIL import Image
 
-try:
-    from .render_transcripts import (
-        Message,
-        build_attachment_path,
-        derive_attachment_day_from_csv_name,
-        split_attachments,
-    )
-except ImportError:
-    from render_transcripts import (
-        Message,
-        build_attachment_path,
-        derive_attachment_day_from_csv_name,
-        split_attachments,
-    )
+from .render_transcripts import (
+    Message,
+    build_attachment_path,
+    derive_attachment_day_from_csv_name,
+    split_attachments,
+)
 
 
 AttachmentEntry = Tuple[str, str, str, str, str, str]

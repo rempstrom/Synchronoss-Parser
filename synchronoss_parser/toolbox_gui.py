@@ -19,7 +19,7 @@ Tabs provided:
 The script can be packaged as a standalone executable with PyInstaller:
 
 ```
-pyinstaller --onefile scripts/toolbox_gui.py
+pyinstaller --onefile synchronoss_parser/toolbox_gui.py
 ```
 """
 
@@ -32,11 +32,11 @@ import tkinter as tk
 from tkinter import filedialog, ttk
 
 # Local modules
-import collect_media as cm
-import collect_attachments as ca
-from contacts_to_excel import convert_contacts
-import render_transcripts as rt
-from utils import normalize_phone_number
+from . import collect_media as cm
+from . import collect_attachments as ca
+from .contacts_to_excel import convert_contacts
+from . import render_transcripts as rt
+from .utils import normalize_phone_number
 
 
 # ---------------------------------------------------------------------------
@@ -258,7 +258,7 @@ def build_render_tab(nb: ttk.Notebook) -> None:
             old_argv = sys.argv[:]
             try:
                 sys.argv = [
-                    "render_transcripts.py",
+                    "render-transcripts",
                     "--in",
                     in_var.get(),
                     "--out",

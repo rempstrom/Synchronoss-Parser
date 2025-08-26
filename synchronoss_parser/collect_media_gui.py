@@ -5,7 +5,7 @@ from pathlib import Path
 import tkinter as tk
 from tkinter import filedialog, ttk
 
-from collect_media import collect_media, write_excel
+from .collect_media import collect_media, write_excel
 
 
 def main():

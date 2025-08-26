@@ -4,7 +4,7 @@ from pathlib import Path
 from PIL import Image
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
-from scripts.attachment_log import create_thumbnail
+from synchronoss_parser.attachment_log import create_thumbnail
 
 def test_create_thumbnail_non_image(tmp_path):
     src = tmp_path / "file.txt"

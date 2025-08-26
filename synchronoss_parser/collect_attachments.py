@@ -22,20 +22,12 @@ from typing import Dict, Tuple, List, Iterable
 
 from openpyxl import Workbook
 
-try:  # Local relative import when package available
-    from .collect_media import md5sum, extract_exif, ensure_unique_name
-    from .render_transcripts import (
-        build_attachment_path,
-        split_attachments,
-        derive_attachment_day_from_csv_name,
-    )
-except Exception:  # Fallback when running as script
-    from collect_media import md5sum, extract_exif, ensure_unique_name
-    from render_transcripts import (
-        build_attachment_path,
-        split_attachments,
-        derive_attachment_day_from_csv_name,
-    )
+from .collect_media import md5sum, extract_exif, ensure_unique_name
+from .render_transcripts import (
+    build_attachment_path,
+    split_attachments,
+    derive_attachment_day_from_csv_name,
+)
 
 # ---------------------------------------------------------------------------
 # Default paths
