@@ -115,13 +115,21 @@ python scripts/build_exe.py
 
 `build_exe.py` invokes PyInstaller on `scripts/toolbox_gui.spec` (and
 `collect_media_gui.spec` if present). PyInstaller places the resulting
-executables in `dist/`. On Windows, run them by double-clicking or from a
-Command Prompt:
+executables in `dist/` and bundles Python and all required libraries, so
+recipients don't need Python installed. On Windows, run them by
+double-clicking or from a Command Prompt:
 
 ```bash
 dist\\toolbox_gui.exe
 dist\\collect_media_gui.exe
 ```
+
+### Verifying the build
+
+Run the generated `.exe` on a clean Windows machine without Python
+installed to confirm the bundled interpreter works. Copy the file from
+`dist/` to the test system and launch it; the application should open
+normally without additional dependencies.
 
 ## Testing
 
