@@ -32,11 +32,11 @@ import tkinter as tk
 from tkinter import filedialog, ttk
 
 # Local modules
-from . import collect_media as cm
-from . import collect_attachments as ca
-from .contacts_to_excel import convert_contacts
-from . import render_transcripts as rt
-from .utils import normalize_phone_number
+from synchronoss_parser import collect_media as cm
+from synchronoss_parser import collect_attachments as ca
+from synchronoss_parser.contacts_to_excel import convert_contacts
+from synchronoss_parser import render_transcripts as rt
+from synchronoss_parser.utils import normalize_phone_number
 
 
 # ---------------------------------------------------------------------------
