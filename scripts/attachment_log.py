@@ -85,7 +85,7 @@ def generate_log(messages_root: Path, out_dir: Path) -> None:
     for fname, sender, recipient, msg_type, direction, day in entries:
         ws.append([fname, sender, recipient])
         attach_path = build_attachment_path(messages_root, msg_type, direction, day, fname)
-        thumb_path = thumb_dir / fname
+        thumb_path = thumb_dir / msg_type / direction / day / fname
         try:
             with Image.open(attach_path) as img:
                 img.thumbnail((128, 128))
