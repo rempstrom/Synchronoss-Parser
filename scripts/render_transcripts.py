@@ -33,7 +33,7 @@ The attachment lookup path is:
 where YYYY-MM-DD is derived from the CSV filename (e.g., 20241121.csv -> 2024-11-21).
 
 Usage:
-  python scripts/render_transcripts.py --in messages --out transcripts
+  python scripts/render_transcripts.py --in messages --out transcripts [--contacts-xlsx contacts.xlsx]
 
 Notes:
 - HTML keeps relative links to your existing attachments (no copying).
@@ -50,7 +50,9 @@ import os
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Callable, Dict, List, Optional, Tuple
+
+import pandas as pd
 
 
 # ------------------------- Config & Utilities -------------------------
@@ -234,6 +236,33 @@ def safe_text(s: Optional[str]) -> str:
     return html.escape(str(s))
 
 
+def build_contact_lookup(xlsx_path: Optional[str]) -> Callable[[str], str]:
+    """Return a lookup function mapping phone numbers to contact names."""
+    mapping: Dict[str, str] = {}
+    if xlsx_path:
+        try:
+            df = pd.read_excel(xlsx_path)
+            for _, row in df.iterrows():
+                first = str(row.get("firstname") or "").strip()
+                last = str(row.get("lastname") or "").strip()
+                numbers = str(row.get("phone_numbers") or "").split(";")
+                name = f"{first} {last}".strip()
+                if not name:
+                    continue
+                for num in numbers:
+                    digits = "".join(ch for ch in str(num) if ch.isdigit())
+                    if digits:
+                        mapping[digits] = name
+        except Exception:
+            pass
+
+    def lookup(number: str) -> str:
+        digits = "".join(ch for ch in str(number) if ch.isdigit())
+        return mapping.get(digits, number)
+
+    return lookup
+
+
 def build_attachment_path(messages_root: Path, msg_type: str, direction: str, day_str: str, filename: str) -> Path:
     return messages_root / "attachments" / msg_type / direction / day_str / filename
 
@@ -245,7 +274,7 @@ def relpath_for_html(from_file: Path, to_target: Path) -> str:
         return str(to_target).replace(os.sep, "/")
 
 
-def load_messages_from_csv(csv_file: Path) -> List[Message]:
+def load_messages_from_csv(csv_file: Path, contact_lookup: Callable[[str], str] = lambda x: x) -> List[Message]:
     msgs: List[Message] = []
     day_folder = derive_attachment_day_from_csv_name(csv_file)
     with csv_file.open("r", encoding="utf-8", newline="") as f:
@@ -258,8 +287,14 @@ def load_messages_from_csv(csv_file: Path) -> List[Message]:
             attachments_field = row.get("Attachments")
             attachments = split_attachments(attachments_field) if attachments_field else []
             body = row.get("Body") or ""
-            sender = row.get("Sender") or ""
-            recipients = row.get("Recipients") or ""
+            sender = contact_lookup(row.get("Sender") or "")
+            raw_recip = row.get("Recipients") or ""
+            recip_parts = []
+            for part in raw_recip.replace(",", ";").split(";"):
+                p = part.strip()
+                if p:
+                    recip_parts.append(contact_lookup(p))
+            recipients = "; ".join(recip_parts)
             message_id = row.get("Message ID") or ""
             msgs.append(
                 Message(
@@ -324,11 +359,13 @@ def render_thread_html(
     msgs: List[Message],
     participants: List[str],
     target_number: str,
+    contact_lookup: Callable[[str], str] = lambda x: x,
 ) -> Tuple[int, int]:
     total = len(msgs)
     with_attachments = 0
 
-    title = f"Chat – {', '.join(participants)}"
+    disp_participants = [contact_lookup(p) for p in participants]
+    title = f"Chat – {', '.join(disp_participants)}"
 
     parts: List[str] = []
     parts.append("<!DOCTYPE html>")
@@ -343,7 +380,8 @@ def render_thread_html(
 
     parts.append("<div class=\"header\">")
     parts.append(f"  <div class=\"container\"><div><strong>{html.escape(title)}</strong></div>")
-    meta_line = f"Target: {html.escape(target_number)}<br>Participants: {html.escape(', '.join(participants))}"
+    target_disp = contact_lookup(target_number)
+    meta_line = f"Target: {html.escape(target_disp)}<br>Participants: {html.escape(', '.join(disp_participants))}"
     parts.append(f"  <div class=\"thread-meta\">{meta_line}</div>")
     parts.append("  </div>")
     parts.append("</div>")
@@ -368,7 +406,7 @@ def render_thread_html(
         parts.append(f"<div class=\"message {side_class}\">")
         parts.append("  <div class=\"bubble\">")
 
-        sender = safe_text(m.sender)
+        sender = safe_text(contact_lookup(m.sender))
         if sender:
             parts.append(f"    <div class=\"sender\">{sender}</div>")
 
@@ -508,9 +546,16 @@ def main():
     ap.add_argument("--in", dest="in_dir", required=True, help="Input root folder (expects CSVs inside, plus attachments/...) e.g. messages")
     ap.add_argument("--out", dest="out_dir", required=True, help="Output folder for HTML transcripts, e.g. transcripts")
     ap.add_argument("--target-number", default="", help="Phone number of the target user")
+    ap.add_argument(
+        "--contacts-xlsx",
+        dest="contacts_xlsx",
+        default="",
+        help="Path to Excel file mapping phone numbers to contacts",
+    )
     args = ap.parse_args()
 
     target = args.target_number
+    lookup = build_contact_lookup(args.contacts_xlsx)
 
     messages_root = Path(args.in_dir).resolve()
     out_root = Path(args.out_dir).resolve()
@@ -525,7 +570,7 @@ def main():
     call_records: List[Message] = []
 
     for csv_file in csv_files:
-        msgs = load_messages_from_csv(csv_file)
+        msgs = load_messages_from_csv(csv_file, lookup)
         for m in msgs:
             if m.msg_type == "call":
                 if not m.sender:
@@ -543,7 +588,9 @@ def main():
         title = f"Chat – {', '.join(participants)}"
         key = sanitize_participants(participants)
         out_file = out_root / f"chat-{key}.html"
-        total, with_attachments = render_thread_html(messages_root, out_file, msgs, list(participants), target)
+        total, with_attachments = render_thread_html(
+            messages_root, out_file, msgs, list(participants), target, lookup
+        )
         rel = os.path.relpath(out_file, start=out_root).replace(os.sep, "/")
         index_entries.append((title, rel, total, with_attachments))
         print(f"Rendered chat {', '.join(participants)}: {total} messages ({with_attachments} with attachments)")
