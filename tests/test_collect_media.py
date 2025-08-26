@@ -34,10 +34,10 @@ def test_write_excel_handles_rational(tmp_path):
     for k, v in list(records[0].items()):
         records[0][k] = collect_media.normalize_exif_value(v)
 
-    collect_media.LOGFILE = tmp_path / "out.xlsx"
-    collect_media.write_excel(records, exif_keys)
+    logfile = tmp_path / "out.xlsx"
+    collect_media.write_excel(records, exif_keys, logfile)
 
-    wb = load_workbook(collect_media.LOGFILE)
+    wb = load_workbook(logfile)
     ws = wb.active
 
     assert ws.cell(row=2, column=5).value == 0.5
