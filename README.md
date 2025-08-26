@@ -106,14 +106,17 @@ Install PyInstaller:
 pip install pyinstaller
 ```
 
-Build one-file, windowed executables for the GUI scripts:
+Build one-file, windowed executables for the GUI scripts using the provided
+spec files and helper script:
 
 ```bash
-pyinstaller --onefile --windowed scripts/toolbox_gui.py
-pyinstaller --onefile --windowed scripts/collect_media_gui.py
+python scripts/build_exe.py
 ```
 
-PyInstaller places the resulting executables in `dist/`. On Windows, run them by double-clicking or from a Command Prompt:
+`build_exe.py` invokes PyInstaller on `scripts/toolbox_gui.spec` (and
+`collect_media_gui.spec` if present). PyInstaller places the resulting
+executables in `dist/`. On Windows, run them by double-clicking or from a
+Command Prompt:
 
 ```bash
 dist\\toolbox_gui.exe
