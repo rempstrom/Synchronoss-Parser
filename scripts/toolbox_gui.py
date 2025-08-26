@@ -33,6 +33,7 @@ from tkinter import filedialog, ttk
 from collect_media import collect_media, write_excel
 from contacts_to_excel import convert_contacts
 import render_transcripts as rt
+from utils import normalize_phone_number
 
 
 # ---------------------------------------------------------------------------
@@ -200,7 +201,9 @@ def build_render_tab(nb: ttk.Notebook) -> None:
     """Add the Render Transcripts UI to ``nb``.
 
     Allows the user to specify the target phone number whose messages should
-    be labeled in the transcript output.
+    be labeled in the transcript output. The phone number may include common
+    formatting characters (``+``, spaces, dashes); these are stripped before
+    validation.
     """
 
     frame = ttk.Frame(nb)
@@ -232,9 +235,12 @@ def build_render_tab(nb: ttk.Notebook) -> None:
             contacts_var.set(path)
 
     def render() -> None:
-        target = target_var.get().strip()
-        if not (target and target.isdigit() and len(target) == 11):
-            status_var.set("Target phone number must be an 11-digit number.")
+        raw_target = target_var.get().strip()
+        target = normalize_phone_number(raw_target)
+        if len(target) != 11:
+            status_var.set(
+                "Target phone number must be 11 digits after removing formatting."
+            )
             return
 
         contacts_path = Path(contacts_var.get()).expanduser()
@@ -300,9 +306,10 @@ def build_render_tab(nb: ttk.Notebook) -> None:
         row=2, column=2, padx=5, pady=5
     )
 
-    ttk.Label(frame, text="Target phone number (11 digits):").grid(
-        row=3, column=0, sticky="e", padx=5, pady=5
-    )
+    ttk.Label(
+        frame,
+        text="Target phone number (11 digits, formatting allowed):",
+    ).grid(row=3, column=0, sticky="e", padx=5, pady=5)
     ttk.Entry(frame, textvariable=target_var, width=20).grid(
         row=3, column=1, padx=5, pady=5, sticky="w"
     )
