@@ -10,7 +10,8 @@ VZMOBILE/
 
 Outputs:
 1. Compiled Media/   — all copied media
-2. compiled_media_log.xlsx — metadata spreadsheet
+2. Compiled Media/compiled_media_log/compiled_media_log.xlsx — metadata
+   spreadsheet stored in its own folder
 """
 
 from pathlib import Path
@@ -28,7 +29,7 @@ from openpyxl import Workbook
 # -------------------------------------------------------------
 DEFAULT_ROOT = Path("VZMOBILE")
 DEFAULT_COMPILED = DEFAULT_ROOT / "Compiled Media"
-DEFAULT_LOGFILE = DEFAULT_ROOT / "compiled_media_log.xlsx"
+DEFAULT_LOGFILE = DEFAULT_COMPILED / "compiled_media_log" / "compiled_media_log.xlsx"
 LOGFILE = DEFAULT_LOGFILE
 
 # Media file extensions to search
@@ -143,6 +144,7 @@ def collect_media(root_path: Path, compiled_path: Path):
 # -------------------------------------------------------------
 def write_excel(records, exif_keys, logfile: Path | None = None):
     logfile = logfile or LOGFILE
+    logfile.parent.mkdir(parents=True, exist_ok=True)
     wb = Workbook()
     ws = wb.active
     ws.title = "Media Metadata"
