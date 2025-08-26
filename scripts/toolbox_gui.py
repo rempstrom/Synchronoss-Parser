@@ -13,7 +13,8 @@ Tabs provided:
 * **Contacts to Excel** – wraps ``contacts_to_excel.convert_contacts``.
 * **Render Transcripts** – wraps ``render_transcripts.main`` and includes
   an entry for the target phone number.
-* **Attachment Log** – wraps ``attachment_log.generate_log``.
+* **Collect Attachments** – wraps ``collect_attachments.collect_attachments``
+  and ``collect_attachments.write_excel``.
 
 The script can be packaged as a standalone executable with PyInstaller:
 
@@ -31,10 +32,10 @@ import tkinter as tk
 from tkinter import filedialog, ttk
 
 # Local modules
-from collect_media import collect_media, write_excel
+import collect_media as cm
+import collect_attachments as ca
 from contacts_to_excel import convert_contacts
 import render_transcripts as rt
-from attachment_log import generate_log
 from utils import normalize_phone_number
 
 
@@ -97,8 +98,8 @@ def build_collect_media_tab(nb: ttk.Notebook) -> None:
 
             logfile = compiled_path / "compiled_media_log" / "compiled_media_log.xlsx"
             try:
-                records, exif_keys = collect_media(root_path, compiled_path)
-                write_excel(records, exif_keys, logfile)
+                records, exif_keys = cm.collect_media(root_path, compiled_path)
+                cm.write_excel(records, exif_keys, logfile)
                 msg = (
                     f"Copied {len(records)} files from '{root_path}' to '{compiled_path}' and "
                     f"logged to '{logfile}'."
@@ -326,25 +327,25 @@ def build_render_tab(nb: ttk.Notebook) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Attachment log tab
+# Collect attachments tab
 # ---------------------------------------------------------------------------
 
 
-def build_attachment_log_tab(nb: ttk.Notebook) -> None:
-    """Add the Attachment Log UI to ``nb``."""
+def build_collect_attachments_tab(nb: ttk.Notebook) -> None:
+    """Add the Collect Attachments UI to ``nb``."""
 
     frame = ttk.Frame(nb)
-    nb.add(frame, text="Attachment Log")
+    nb.add(frame, text="Collect Attachments")
 
-    messages_var = tk.StringVar()
+    attachments_var = tk.StringVar()
     out_var = tk.StringVar()
     status_var = tk.StringVar()
     progress = ttk.Progressbar(frame, mode="indeterminate")
 
-    def browse_messages() -> None:
-        path = filedialog.askdirectory(initialdir=messages_var.get() or ".")
+    def browse_attachments() -> None:
+        path = filedialog.askdirectory(initialdir=attachments_var.get() or ".")
         if path:
-            messages_var.set(path)
+            attachments_var.set(path)
 
     def browse_out() -> None:
         path = filedialog.askdirectory(initialdir=out_var.get() or ".")
@@ -353,15 +354,51 @@ def build_attachment_log_tab(nb: ttk.Notebook) -> None:
 
     def run() -> None:
         progress.start()
-        status_var.set("Generating...")
 
         def task() -> None:
-            try:
-                generate_log(
-                    Path(messages_var.get()).expanduser(),
-                    Path(out_var.get()).expanduser(),
+            attachments_root = Path(attachments_var.get()).expanduser()
+            compiled_path = Path(out_var.get()).expanduser()
+
+            if not attachments_root.exists():
+                frame.after(
+                    0,
+                    lambda: [
+                        status_var.set(
+                            f"Attachments folder '{attachments_root}' does not exist."
+                        ),
+                        progress.stop(),
+                    ],
                 )
-                msg = f"Generated attachment log in '{out_var.get()}'"
+                return
+
+            try:
+                compiled_path.mkdir(parents=True, exist_ok=True)
+            except Exception as e:
+                frame.after(
+                    0,
+                    lambda: [
+                        status_var.set(
+                            f"Could not create output folder '{compiled_path}': {e}"
+                        ),
+                        progress.stop(),
+                    ],
+                )
+                return
+
+            logfile = (
+                compiled_path
+                / "compiled_attachment_log"
+                / "compiled_attachment_log.xlsx"
+            )
+            try:
+                records, exif_keys = ca.collect_attachments(
+                    attachments_root, compiled_path
+                )
+                ca.write_excel(records, exif_keys, logfile)
+                msg = (
+                    f"Copied {len(records)} files from '{attachments_root}' to '{compiled_path}' and "
+                    f"logged to '{logfile}'."
+                )
             except Exception as e:  # pragma: no cover - user feedback
                 msg = f"Error: {e}"
 
@@ -369,13 +406,13 @@ def build_attachment_log_tab(nb: ttk.Notebook) -> None:
 
         threading.Thread(target=task, daemon=True).start()
 
-    ttk.Label(frame, text="'Messages' Folder Path:").grid(
+    ttk.Label(frame, text="Attachments folder:").grid(
         row=0, column=0, sticky="e", padx=5, pady=5
     )
-    ttk.Entry(frame, textvariable=messages_var, width=50).grid(
+    ttk.Entry(frame, textvariable=attachments_var, width=50).grid(
         row=0, column=1, padx=5, pady=5
     )
-    ttk.Button(frame, text="Browse", command=browse_messages).grid(
+    ttk.Button(frame, text="Browse", command=browse_attachments).grid(
         row=0, column=2, padx=5, pady=5
     )
 
@@ -413,7 +450,7 @@ def main() -> None:  # pragma: no cover - GUI entry point
     build_collect_media_tab(notebook)
     build_contacts_tab(notebook)
     build_render_tab(notebook)
-    build_attachment_log_tab(notebook)
+    build_collect_attachments_tab(notebook)
 
     root.mainloop()
 

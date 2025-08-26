@@ -84,15 +84,8 @@ a contacts Excel file for name lookups.
 python scripts/render_transcripts.py --in messages --out transcripts --contacts-xlsx contacts.xlsx
 ```
 
-### attachment_log.py
-Generate an Excel and HTML log of every attachment referenced in the message CSVs.
-
-```bash
-python scripts/attachment_log.py --messages messages --out "Attachment Log"
-```
-
 ### toolbox_gui.py
-Tkinter GUI that wraps Collect Media, Contacts to Excel and Render Transcripts workflows.
+Tkinter GUI that wraps Collect Media, Collect Attachments, Contacts to Excel and Render Transcripts workflows.
 
 ```bash
 python scripts/toolbox_gui.py
