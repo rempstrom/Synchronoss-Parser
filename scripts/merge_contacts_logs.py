@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """Annotate call logs with contact names.
 
-Reads a CSV call log and an Excel contacts file, then writes a new CSV
+Reads a call log CSV (`Call Log/call_log.csv`) and an Excel contacts file, then writes a new CSV
 with added ``caller_name`` and ``recipient_name`` columns based on phone
 number matches.
 
 Usage:
-  python scripts/merge_contacts_logs.py --call-log calls.csv --contacts-xlsx contacts.xlsx
+  python scripts/merge_contacts_logs.py --call-log 'Call Log/call_log.csv' --contacts-xlsx contacts.xlsx
 """
 
 import argparse
