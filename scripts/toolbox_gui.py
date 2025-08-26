@@ -92,7 +92,7 @@ def build_collect_media_tab(nb: ttk.Notebook) -> None:
                 )
                 return
 
-            logfile = compiled_path / "compiled_media_log.xlsx"
+            logfile = compiled_path / "compiled_media_log" / "compiled_media_log.xlsx"
             try:
                 records, exif_keys = collect_media(root_path, compiled_path)
                 write_excel(records, exif_keys, logfile)

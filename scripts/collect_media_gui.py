@@ -40,7 +40,7 @@ def main():
             status_var.set(f"Could not create output folder '{compiled_path}': {e}")
             return
 
-        logfile = compiled_path / "compiled_media_log.xlsx"
+        logfile = compiled_path / "compiled_media_log" / "compiled_media_log.xlsx"
 
         progress.start()
         window.update_idletasks()
