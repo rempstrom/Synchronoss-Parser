@@ -10,7 +10,7 @@ from openpyxl import load_workbook
 def load_module():
     project_root = Path(__file__).resolve().parents[1]
     sys.path.append(str(project_root))
-    return importlib.import_module("scripts.collect_attachments")
+    return importlib.import_module("synchronoss_parser.collect_attachments")
 
 
 def test_collect_attachments_copies_files_and_logs_metadata(tmp_path):

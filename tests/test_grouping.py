@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
-from scripts.render_transcripts import Message, group_messages_by_chat
+from synchronoss_parser.render_transcripts import Message, group_messages_by_chat
 
 
 def make_message(direction, sender="", recipients="", msg_type="sms"):

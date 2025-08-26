@@ -158,12 +158,12 @@ def write_excel(records, exif_keys, logfile: Path | None = None):
 
     wb.save(logfile)
 
-# -------------------------------------------------------------
-if __name__ == "__main__":
-    root_path = DEFAULT_ROOT
-    compiled_path = DEFAULT_COMPILED
-    logfile = DEFAULT_LOGFILE
-
+def main(
+    root_path: Path = DEFAULT_ROOT,
+    compiled_path: Path = DEFAULT_COMPILED,
+    logfile: Path = DEFAULT_LOGFILE,
+) -> None:
+    """CLI entry point using default paths."""
     if not root_path.exists():
         raise SystemExit(f"Root folder '{root_path}' not found.")
 
@@ -172,3 +172,7 @@ if __name__ == "__main__":
     print(
         f"Copied {len(records)} files from '{root_path}' to '{compiled_path}' and logged metadata to '{logfile}'."
     )
+
+
+if __name__ == "__main__":
+    main()

@@ -1,4 +1,5 @@
-import importlib.util
+import importlib
+import sys
 from pathlib import Path
 from fractions import Fraction
 
@@ -11,11 +12,9 @@ from openpyxl import load_workbook
 
 
 def load_module():
-    module_path = Path(__file__).resolve().parents[1] / "scripts" / "collect_media.py"
-    spec = importlib.util.spec_from_file_location("collect_media", module_path)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
+    project_root = Path(__file__).resolve().parents[1]
+    sys.path.append(str(project_root))
+    return importlib.import_module("synchronoss_parser.collect_media")
 
 
 def test_write_excel_handles_rational(tmp_path):

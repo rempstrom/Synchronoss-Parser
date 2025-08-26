@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
-from scripts.utils import normalize_phone_number
+from synchronoss_parser.utils import normalize_phone_number
 
 
 @pytest.mark.parametrize(

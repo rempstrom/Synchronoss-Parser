@@ -25,13 +25,13 @@ messages/
 
 ## Installation
 
-Install dependencies with pip:
+Install the package and its dependencies with pip:
 
 ```bash
-pip install -r requirements.txt
+pip install .
 ```
 
-`requirements.txt` lists Pillow, openpyxl, pandas and pytest (Tkinter may require OS packages).
+Tkinter may require additional OS-level packages.
 
 ## Scripts
 
@@ -39,7 +39,7 @@ pip install -r requirements.txt
 Copy media from a Verizon Mobile backup into a single folder and log EXIF metadata to Excel.
 
 ```bash
-python scripts/collect_media.py
+collect-media
 ```
 
 ### collect_attachments.py
@@ -59,21 +59,21 @@ All files are copied to `Compiled Attachments/` and their details recorded in
 `Compiled Attachments/compiled_attachment_log/compiled_attachment_log.xlsx`.
 
 ```bash
-python scripts/collect_attachments.py
+collect-attachments
 ```
 
 ### contacts_to_excel.py
 Convert a `contacts.txt` export to an Excel spreadsheet.
 
 ```bash
-python scripts/contacts_to_excel.py --input contacts.txt --output contacts.xlsx
+contacts-to-excel --input contacts.txt --output contacts.xlsx
 ```
 
 ### merge_contacts_logs.py
 Annotate a call log CSV with caller and recipient names using a contacts Excel file.
 
 ```bash
-python scripts/merge_contacts_logs.py --call-log "Call Log/call_log.csv" --contacts-xlsx contacts.xlsx
+merge-contacts-logs --call-log "Call Log/call_log.csv" --contacts-xlsx contacts.xlsx
 ```
 
 ### render_transcripts.py
@@ -81,21 +81,21 @@ Render chat-bubble style HTML transcripts from message CSVs and link attachments
 a contacts Excel file for name lookups.
 
 ```bash
-python scripts/render_transcripts.py --in messages --out transcripts --contacts-xlsx contacts.xlsx
+render-transcripts --in messages --out transcripts --contacts-xlsx contacts.xlsx
 ```
 
 ### toolbox_gui.py
 Tkinter GUI that wraps Collect Media, Collect Attachments, Contacts to Excel and Render Transcripts workflows.
 
 ```bash
-python scripts/toolbox_gui.py
+toolbox-gui
 ```
 
 ### collect_media_gui.py
 Simple GUI wrapper for `collect_media.py`.
 
 ```bash
-python scripts/collect_media_gui.py
+collect-media-gui
 ```
  
 ## Building Windows Executables
@@ -107,13 +107,13 @@ pip install pyinstaller
 ```
 
 Build one-file, windowed executables for the GUI scripts using the provided
-spec files and helper script:
+helper after installing the package:
 
 ```bash
-python scripts/build_exe.py
+build-exe
 ```
 
-`build_exe.py` invokes PyInstaller on `scripts/toolbox_gui.spec` (and
+The command invokes PyInstaller on `toolbox_gui.spec` (and
 `collect_media_gui.spec` if present). PyInstaller places the resulting
 executables in `dist/` and bundles Python and all required libraries, so
 recipients don't need Python installed. On Windows, run them by

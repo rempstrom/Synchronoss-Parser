@@ -6,7 +6,7 @@ with added ``caller_name`` and ``recipient_name`` columns based on phone
 number matches.
 
 Usage:
-  python scripts/merge_contacts_logs.py --call-log 'Call Log/call_log.csv' --contacts-xlsx contacts.xlsx
+  merge-contacts-logs --call-log 'Call Log/call_log.csv' --contacts-xlsx contacts.xlsx
 """
 
 import argparse
@@ -21,14 +21,7 @@ except ImportError:  # pragma: no cover - user guidance path
     print("Exiting due to missing dependency.")
     sys.exit(1)
 
-try:
-    from render_transcripts import build_contact_lookup
-except Exception:  # pragma: no cover - fallback for packaged use
-    try:
-        from scripts.render_transcripts import build_contact_lookup  # type: ignore
-    except Exception:
-        print("Could not import build_contact_lookup from render_transcripts.")
-        sys.exit(1)
+from .render_transcripts import build_contact_lookup
 
 
 def merge_call_log(call_log_csv: str, contacts_xlsx: str, output_csv: str) -> int:
