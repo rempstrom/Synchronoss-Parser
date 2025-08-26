@@ -88,6 +88,18 @@ body {
 }
 .container { max-width: var(--max-width); margin: 0 auto; padding: 12px 16px 80px; }
 .thread-meta { color: var(--muted); font-size: 12px; margin-top: 2px; }
+.search-bar {
+  margin-top: 8px;
+}
+.search-input {
+  width: 100%;
+  max-width: 400px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid #374151;
+  background: var(--panel);
+  color: var(--text);
+}
 
 .message {
   display: flex; margin: 8px 0; gap: 10px; align-items: flex-end;
@@ -124,6 +136,8 @@ body { background:#1e293b; color:#f3f4f6; font: 15px/1.5 system-ui, -apple-syste
 .container { max-width: 900px; margin: 0 auto; padding: 24px 16px; }
 h1 { margin: 0 0 8px; font-size: 24px; }
 .subtitle { color:#cbd5e1; margin-bottom: 16px; font-size: 13px; }
+.search-bar { margin-bottom: 16px; }
+.search-input { width:100%; max-width:400px; padding:6px 8px; border-radius:8px; border:1px solid #374151; background:#1f2937; color:#f3f4f6; }
 .list { display: grid; gap: 10px; }
 .item { background:#1f2937; border:1px solid #374151; border-radius: 12px; padding: 12px; }
 .item a { color:#93c5fd; text-decoration:none; font-weight:600; }
@@ -401,10 +415,12 @@ def render_thread_html(
     parts.append("<body>")
 
     parts.append("<div class=\"header\">")
-    parts.append(f"  <div class=\"container\"><div><strong>{html.escape(title)}</strong></div>")
+    parts.append("  <div class=\"container\">")
+    parts.append(f"    <div><strong>{html.escape(title)}</strong></div>")
     target_disp = contact_lookup(target_number)
     meta_line = f"Target: {html.escape(target_disp)}<br>Participants: {html.escape(', '.join(disp_participants))}"
-    parts.append(f"  <div class=\"thread-meta\">{meta_line}</div>")
+    parts.append(f"    <div class=\"thread-meta\">{meta_line}</div>")
+    parts.append("    <div class=\"search-bar\"><input id=\"search\" class=\"search-input\" placeholder=\"Search messages\"></div>")
     parts.append("  </div>")
     parts.append("</div>")
 
@@ -527,7 +543,10 @@ def render_thread_html(
     parts.append("<div class=\"footer\">")
     parts.append("  <div class=\"container\">Return to <a href=\"index.html\">index</a></div>")
     parts.append("</div>")
-
+    parts.append("<script>")
+    parts.append("const s=document.getElementById('search');")
+    parts.append("s&&s.addEventListener('input',e=>{const q=e.target.value.toLowerCase();document.querySelectorAll('.message').forEach(m=>{m.style.display=m.textContent.toLowerCase().includes(q)?'':'none';});});")
+    parts.append("</script>")
     parts.append("</body></html>")
 
     out_file.parent.mkdir(parents=True, exist_ok=True)
@@ -549,6 +568,7 @@ def write_index(out_dir: Path, entries: List[Tuple[str, str, int, int]]):
     lines.append("<div class=\"container\">")
     lines.append("  <h1>Message Transcripts</h1>")
     lines.append("  <div class=\"subtitle\">One HTML per chat. Click to view. (Times shown in local system timezone inside each transcript.)</div>")
+    lines.append("  <div class=\"search-bar\"><input id=\"search\" class=\"search-input\" placeholder=\"Search chats\"></div>")
     lines.append("  <div class=\"list\">")
     for title, rel, c, ca in entries:
         lines.append("    <div class=\"item\">")
@@ -557,6 +577,10 @@ def write_index(out_dir: Path, entries: List[Tuple[str, str, int, int]]):
         lines.append("    </div>")
     lines.append("  </div>")
     lines.append("</div>")
+    lines.append("<script>")
+    lines.append("const s=document.getElementById('search');")
+    lines.append("s&&s.addEventListener('input',e=>{const q=e.target.value.toLowerCase();document.querySelectorAll('.item').forEach(it=>{it.style.display=it.textContent.toLowerCase().includes(q)?'':'none';});});")
+    lines.append("</script>")
     lines.append("</body></html>")
     (out_dir / "index.html").write_text("\n".join(lines), encoding="utf-8")
 
