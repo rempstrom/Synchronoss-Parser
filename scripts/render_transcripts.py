@@ -429,6 +429,11 @@ def render_thread_html(
                 parts.extend(["      " + s for s in attachment_snippets])
                 parts.append("    </div>")
 
+        if m.msg_type == "mms" and not attachment_snippets:
+            parts.append(
+                "    <div class=\"body-text missing\">NO ATTACHMENT AVAILABLE - LOG ONLY</div>"
+            )
+
         # Meta line
         if m.date_dt:
             local_str = m.date_dt.astimezone().strftime("%Y-%m-%d %H:%M:%S %Z")
