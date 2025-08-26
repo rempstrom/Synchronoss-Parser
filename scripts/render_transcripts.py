@@ -101,6 +101,7 @@ body {
 
 .meta { font-size: 11px; color: var(--muted); margin-top: 6px; }
 .body-text { white-space: pre-wrap; }
+.missing { color: var(--muted); font-style: italic; }
 .attachments { margin-top: 8px; display: grid; gap: 8px; }
 .attachment img { max-width: 100%; border-radius: 12px; display: block; }
 .attachment video, .attachment audio { width: 100%; outline: none; }
@@ -368,6 +369,10 @@ def render_thread_html(
         body_html = safe_text(m.body)
         if body_html:
             parts.append(f"    <div class=\"body-text\">{body_html}</div>")
+        elif m.msg_type == "sms":
+            parts.append(
+                "    <div class=\"body-text missing\">NO DATA CONTAINED WITHIN CSV FILE FOR THIS SMS MESSAGE - LOG ONLY</div>"
+            )
 
         # Attachments
         attachment_snippets: List[str] = []
