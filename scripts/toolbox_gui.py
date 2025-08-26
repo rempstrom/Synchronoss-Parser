@@ -13,6 +13,7 @@ Tabs provided:
 * **Contacts to Excel** – wraps ``contacts_to_excel.convert_contacts``.
 * **Render Transcripts** – wraps ``render_transcripts.main`` and includes
   an entry for the target phone number.
+* **Attachment Log** – wraps ``attachment_log.generate_log``.
 
 The script can be packaged as a standalone executable with PyInstaller:
 
@@ -33,6 +34,7 @@ from tkinter import filedialog, ttk
 from collect_media import collect_media, write_excel
 from contacts_to_excel import convert_contacts
 import render_transcripts as rt
+from attachment_log import generate_log
 from utils import normalize_phone_number
 
 
@@ -324,6 +326,79 @@ def build_render_tab(nb: ttk.Notebook) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Attachment log tab
+# ---------------------------------------------------------------------------
+
+
+def build_attachment_log_tab(nb: ttk.Notebook) -> None:
+    """Add the Attachment Log UI to ``nb``."""
+
+    frame = ttk.Frame(nb)
+    nb.add(frame, text="Attachment Log")
+
+    messages_var = tk.StringVar()
+    out_var = tk.StringVar()
+    status_var = tk.StringVar()
+    progress = ttk.Progressbar(frame, mode="indeterminate")
+
+    def browse_messages() -> None:
+        path = filedialog.askdirectory(initialdir=messages_var.get() or ".")
+        if path:
+            messages_var.set(path)
+
+    def browse_out() -> None:
+        path = filedialog.askdirectory(initialdir=out_var.get() or ".")
+        if path:
+            out_var.set(path)
+
+    def run() -> None:
+        progress.start()
+        status_var.set("Generating...")
+
+        def task() -> None:
+            try:
+                generate_log(
+                    Path(messages_var.get()).expanduser(),
+                    Path(out_var.get()).expanduser(),
+                )
+                msg = f"Generated attachment log in '{out_var.get()}'"
+            except Exception as e:  # pragma: no cover - user feedback
+                msg = f"Error: {e}"
+
+            frame.after(0, lambda: [status_var.set(msg), progress.stop()])
+
+        threading.Thread(target=task, daemon=True).start()
+
+    ttk.Label(frame, text="Messages folder:").grid(
+        row=0, column=0, sticky="e", padx=5, pady=5
+    )
+    ttk.Entry(frame, textvariable=messages_var, width=50).grid(
+        row=0, column=1, padx=5, pady=5
+    )
+    ttk.Button(frame, text="Browse", command=browse_messages).grid(
+        row=0, column=2, padx=5, pady=5
+    )
+
+    ttk.Label(frame, text="Output folder:").grid(
+        row=1, column=0, sticky="e", padx=5, pady=5
+    )
+    ttk.Entry(frame, textvariable=out_var, width=50).grid(
+        row=1, column=1, padx=5, pady=5
+    )
+    ttk.Button(frame, text="Browse", command=browse_out).grid(
+        row=1, column=2, padx=5, pady=5
+    )
+
+    ttk.Button(frame, text="Run", command=run).grid(row=2, column=1, pady=10)
+
+    progress.grid(row=3, column=0, columnspan=3, sticky="ew", padx=5)
+
+    ttk.Label(frame, textvariable=status_var, wraplength=400, justify="left").grid(
+        row=4, column=0, columnspan=3, padx=5, pady=5
+    )
+
+
+# ---------------------------------------------------------------------------
 # Main application
 # ---------------------------------------------------------------------------
 
@@ -338,6 +413,7 @@ def main() -> None:  # pragma: no cover - GUI entry point
     build_collect_media_tab(notebook)
     build_contacts_tab(notebook)
     build_render_tab(notebook)
+    build_attachment_log_tab(notebook)
 
     root.mainloop()
 
