@@ -97,11 +97,27 @@ Simple GUI wrapper for `collect_media.py`.
 ```bash
 python scripts/collect_media_gui.py
 ```
+ 
+## Building Windows Executables
 
-Both GUI scripts can be packaged as standalone executables with PyInstaller, e.g.
+Install PyInstaller:
 
 ```bash
-pyinstaller --onefile scripts/toolbox_gui.py
+pip install pyinstaller
+```
+
+Build one-file, windowed executables for the GUI scripts:
+
+```bash
+pyinstaller --onefile --windowed scripts/toolbox_gui.py
+pyinstaller --onefile --windowed scripts/collect_media_gui.py
+```
+
+PyInstaller places the resulting executables in `dist/`. On Windows, run them by double-clicking or from a Command Prompt:
+
+```bash
+dist\\toolbox_gui.exe
+dist\\collect_media_gui.exe
 ```
 
 ## Testing
