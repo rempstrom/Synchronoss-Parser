@@ -375,10 +375,12 @@ def render_thread_html(
         body_html = safe_text(m.body)
         if body_html:
             parts.append(f"    <div class=\"body-text\">{body_html}</div>")
-        elif m.msg_type == "sms":
-            parts.append(
-                "    <div class=\"body-text missing\">NO DATA CONTAINED WITHIN CSV FILE FOR THIS SMS MESSAGE - LOG ONLY</div>"
+        else:
+            msg_type = (m.msg_type or "").upper()
+            placeholder = (
+                f"NO DATA IN CSV FOR THIS {msg_type} MESSAGE - LOG ONLY" if msg_type else "NO DATA IN CSV FOR THIS MESSAGE - LOG ONLY"
             )
+            parts.append(f"    <div class=\"body-text missing\">{placeholder}</div>")
 
         # Attachments
         attachment_snippets: List[str] = []
