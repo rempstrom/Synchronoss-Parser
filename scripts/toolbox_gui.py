@@ -182,7 +182,7 @@ def build_contacts_tab(nb: ttk.Notebook) -> None:
 
         threading.Thread(target=task, daemon=True).start()
 
-    ttk.Label(frame, text="Input file:").grid(row=0, column=0, sticky="e", padx=5, pady=5)
+    ttk.Label(frame, text="'contacts.txt' File Path:").grid(row=0, column=0, sticky="e", padx=5, pady=5)
     ttk.Entry(frame, textvariable=in_var, width=50).grid(row=0, column=1, padx=5, pady=5)
     ttk.Button(frame, text="Browse", command=browse_in).grid(row=0, column=2, padx=5, pady=5)
 
