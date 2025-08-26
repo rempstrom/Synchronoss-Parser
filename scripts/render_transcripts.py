@@ -236,6 +236,28 @@ def safe_text(s: Optional[str]) -> str:
     return html.escape(str(s))
 
 
+def normalize_phone_number(number: str) -> str:
+    """Return a canonical form for a phone number.
+
+    All non-digit characters are stripped and a leading ``1`` (US/Canada
+    country code) is removed when the result would otherwise be eleven
+    digits. Examples::
+
+        normalize_phone_number("+1 111-222-3333") -> "1112223333"
+        normalize_phone_number("(111) 222-3333") -> "1112223333"
+        normalize_phone_number("+12223334444") -> "2223334444"
+
+    Supported input formats therefore include ``+12223334444``,
+    ``111-222-3333``, ``(111) 222-3333``, ``+1 111-222-3333`` and
+    ``1112223333``.
+    """
+
+    digits = "".join(ch for ch in str(number) if ch.isdigit())
+    if len(digits) == 11 and digits.startswith("1"):
+        digits = digits[1:]
+    return digits
+
+
 def build_contact_lookup(xlsx_path: Optional[str]) -> Callable[[str], str]:
     """Return a lookup function mapping phone numbers to contact names."""
     mapping: Dict[str, str] = {}
@@ -250,14 +272,14 @@ def build_contact_lookup(xlsx_path: Optional[str]) -> Callable[[str], str]:
                 if not name:
                     continue
                 for num in numbers:
-                    digits = "".join(ch for ch in str(num) if ch.isdigit())
+                    digits = normalize_phone_number(num)
                     if digits:
                         mapping[digits] = name
         except Exception:
             pass
 
     def lookup(number: str) -> str:
-        digits = "".join(ch for ch in str(number) if ch.isdigit())
+        digits = normalize_phone_number(number)
         return mapping.get(digits, number)
 
     return lookup
