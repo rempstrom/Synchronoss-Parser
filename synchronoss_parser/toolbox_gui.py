@@ -65,6 +65,14 @@ def build_collect_media_tab(nb: ttk.Notebook) -> None:
         if path:
             out_var.set(path)
 
+    def browse_contacts() -> None:
+        path = filedialog.askopenfilename(
+            title="Select contacts Excel file",
+            filetypes=[("Excel files", "*.xlsx"), ("All files", "*.*")],
+        )
+        if path:
+            contacts_var.set(path)
+
     def run() -> None:
         progress.start()
 
@@ -131,12 +139,22 @@ def build_collect_media_tab(nb: ttk.Notebook) -> None:
         row=1, column=2, padx=5, pady=5
     )
 
-    ttk.Button(frame, text="Run", command=run).grid(row=2, column=1, pady=10)
+    ttk.Label(frame, text="Contacts file:").grid(
+        row=2, column=0, sticky="e", padx=5, pady=5
+    )
+    ttk.Entry(frame, textvariable=contacts_var, width=50).grid(
+        row=2, column=1, padx=5, pady=5
+    )
+    ttk.Button(frame, text="Browse", command=browse_contacts).grid(
+        row=2, column=2, padx=5, pady=5
+    )
 
-    progress.grid(row=3, column=0, columnspan=3, sticky="ew", padx=5)
+    ttk.Button(frame, text="Run", command=run).grid(row=3, column=1, pady=10)
+
+    progress.grid(row=4, column=0, columnspan=3, sticky="ew", padx=5)
 
     ttk.Label(frame, textvariable=status_var, wraplength=400, justify="left").grid(
-        row=4, column=0, columnspan=3, padx=5, pady=5
+        row=5, column=0, columnspan=3, padx=5, pady=5
     )
 
 
@@ -339,6 +357,7 @@ def build_collect_attachments_tab(nb: ttk.Notebook) -> None:
 
     attachments_var = tk.StringVar()
     out_var = tk.StringVar()
+    contacts_var = tk.StringVar()
     status_var = tk.StringVar()
     progress = ttk.Progressbar(frame, mode="indeterminate")
 
@@ -351,6 +370,14 @@ def build_collect_attachments_tab(nb: ttk.Notebook) -> None:
         path = filedialog.askdirectory(initialdir=out_var.get() or ".")
         if path:
             out_var.set(path)
+
+    def browse_contacts() -> None:
+        path = filedialog.askopenfilename(
+            title="Select contacts Excel file",
+            filetypes=[("Excel files", "*.xlsx"), ("All files", "*.*")],
+        )
+        if path:
+            contacts_var.set(path)
 
     def run() -> None:
         progress.start()
@@ -390,9 +417,10 @@ def build_collect_attachments_tab(nb: ttk.Notebook) -> None:
                 / "compiled_attachment_log"
                 / "compiled_attachment_log.xlsx"
             )
+            contacts_path = contacts_var.get() or None
             try:
                 records, exif_keys = ca.collect_attachments(
-                    attachments_root, compiled_path
+                    attachments_root, compiled_path, contacts_path
                 )
                 ca.write_excel(records, exif_keys, logfile)
                 msg = (
@@ -426,12 +454,22 @@ def build_collect_attachments_tab(nb: ttk.Notebook) -> None:
         row=1, column=2, padx=5, pady=5
     )
 
-    ttk.Button(frame, text="Run", command=run).grid(row=2, column=1, pady=10)
+    ttk.Label(frame, text="Contacts file:").grid(
+        row=2, column=0, sticky="e", padx=5, pady=5
+    )
+    ttk.Entry(frame, textvariable=contacts_var, width=50).grid(
+        row=2, column=1, padx=5, pady=5
+    )
+    ttk.Button(frame, text="Browse", command=browse_contacts).grid(
+        row=2, column=2, padx=5, pady=5
+    )
 
-    progress.grid(row=3, column=0, columnspan=3, sticky="ew", padx=5)
+    ttk.Button(frame, text="Run", command=run).grid(row=3, column=1, pady=10)
+
+    progress.grid(row=4, column=0, columnspan=3, sticky="ew", padx=5)
 
     ttk.Label(frame, textvariable=status_var, wraplength=400, justify="left").grid(
-        row=4, column=0, columnspan=3, padx=5, pady=5
+        row=5, column=0, columnspan=3, padx=5, pady=5
     )
 
 
