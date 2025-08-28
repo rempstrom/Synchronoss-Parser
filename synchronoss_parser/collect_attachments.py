@@ -16,17 +16,20 @@ from ``render_transcripts``.
 from __future__ import annotations
 
 import csv
+import re
 import shutil
 from pathlib import Path
-from typing import Dict, Tuple, List, Iterable
+from typing import Callable, Dict, Iterable, List, Tuple
 
 from openpyxl import Workbook
 
 from .collect_media import md5sum, extract_exif, ensure_unique_name
 from .render_transcripts import (
     build_attachment_path,
-    split_attachments,
+    build_contact_lookup,
     derive_attachment_day_from_csv_name,
+    parse_csv_date,
+    split_attachments,
 )
 
 # ---------------------------------------------------------------------------
@@ -37,10 +40,21 @@ DEFAULT_COMPILED = Path("Compiled Attachments")
 DEFAULT_LOGFILE = DEFAULT_COMPILED / "compiled_attachment_log" / "compiled_attachment_log.xlsx"
 
 # ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def sanitize_filename_component(text: str) -> str:
+    """Return ``text`` stripped of common filesystem-unsafe characters."""
+    cleaned = re.sub(r'[<>:"/\\|?*\x00-\x1F]', "", text)
+    return cleaned.strip().rstrip(".")
+
+# ---------------------------------------------------------------------------
 # Helper to map attachment files to message metadata
 # ---------------------------------------------------------------------------
 
-def build_metadata_index(messages_root: Path) -> Dict[Path, Dict[str, str]]:
+def build_metadata_index(
+    messages_root: Path, contact_lookup: Callable[[str], str] = lambda x: x
+) -> Dict[Path, Dict[str, str]]:
     """Scan message CSV files and map attachment paths to metadata."""
     index: Dict[Path, Dict[str, str]] = {}
     for csv_file in sorted(messages_root.glob("*.csv")):
@@ -54,10 +68,20 @@ def build_metadata_index(messages_root: Path) -> Dict[Path, Dict[str, str]]:
                 msg_type = (row.get("Type") or "").strip().lower()
                 direction = (row.get("Direction") or "").strip().lower()
                 date = (row.get("Date") or "").strip()
-                sender = (row.get("Sender") or "").strip()
-                recipient = (row.get("Recipients") or "").strip()
+                sender = contact_lookup((row.get("Sender") or "").strip())
+
+                raw_recip = (row.get("Recipients") or "")
+                recip_parts: List[str] = []
+                for part in raw_recip.replace(",", ";").split(";"):
+                    p = part.strip()
+                    if p:
+                        recip_parts.append(contact_lookup(p))
+                recipient = "; ".join(recip_parts)
+
                 for fname in attachments:
-                    path = build_attachment_path(messages_root, msg_type, direction, day or "", fname)
+                    path = build_attachment_path(
+                        messages_root, msg_type, direction, day or "", fname
+                    )
                     index[path.resolve()] = {
                         "Date": date,
                         "Sender": sender,
@@ -69,7 +93,11 @@ def build_metadata_index(messages_root: Path) -> Dict[Path, Dict[str, str]]:
 # Main processing
 # ---------------------------------------------------------------------------
 
-def collect_attachments(attachments_root: Path, compiled_path: Path) -> Tuple[List[Dict[str, str]], List[str]]:
+def collect_attachments(
+    attachments_root: Path,
+    compiled_path: Path,
+    contacts_xlsx: str | Path | None = None,
+) -> Tuple[List[Dict[str, str]], List[str]]:
     """Copy attachments from ``attachments_root`` into ``compiled_path``.
 
     Returns a tuple ``(records, exif_keys)`` where ``records`` is a list of
@@ -79,7 +107,8 @@ def collect_attachments(attachments_root: Path, compiled_path: Path) -> Tuple[Li
     compiled_path.mkdir(exist_ok=True)
 
     messages_root = attachments_root.parent
-    metadata_index = build_metadata_index(messages_root)
+    lookup = build_contact_lookup(str(contacts_xlsx) if contacts_xlsx else None)
+    metadata_index = build_metadata_index(messages_root, lookup)
 
     records: List[Dict[str, str]] = []
     exif_keys: set[str] = set()
@@ -88,16 +117,26 @@ def collect_attachments(attachments_root: Path, compiled_path: Path) -> Tuple[Li
         if not file.is_file():
             continue
 
-        dest = ensure_unique_name(compiled_path, file.name)
+        meta = metadata_index.get(file.resolve(), {})
+
+        sender = sanitize_filename_component(meta.get("Sender", "")) or "unknown"
+        date_raw = meta.get("Date", "")
+        date_dt = parse_csv_date(date_raw)
+        if date_dt:
+            formatted_date = date_dt.strftime("%Y-%m-%d %H-%M-%S")
+        else:
+            formatted_date = sanitize_filename_component(date_raw.replace(":", "-")) or "unknown-date"
+
+        dest_name = f"{sender} - {formatted_date}{file.suffix}"
+        dest = ensure_unique_name(compiled_path, dest_name)
         shutil.copy2(file, dest)
 
         exif = extract_exif(file)
         exif_keys.update(exif.keys())
 
-        meta = metadata_index.get(file.resolve(), {})
         record = {
             "File Name": dest.name,
-            "Date": meta.get("Date", ""),
+            "Date": date_raw,
             "Sender": meta.get("Sender", ""),
             "Recipient": meta.get("Recipient", ""),
             "MD5": md5sum(file),
@@ -132,13 +171,13 @@ def write_excel(records: Iterable[Dict[str, str]], exif_keys: Iterable[str], log
 # Command line interface
 # ---------------------------------------------------------------------------
 
-def main(attachments_root: Path | str = DEFAULT_ATTACHMENTS_ROOT, compiled_path: Path | str = DEFAULT_COMPILED, logfile: Path | None = None) -> None:
+def main(attachments_root: Path | str = DEFAULT_ATTACHMENTS_ROOT, compiled_path: Path | str = DEFAULT_COMPILED, contacts_xlsx: Path | str | None = None, logfile: Path | None = None) -> None:
     attachments_root = Path(attachments_root)
     compiled_path = Path(compiled_path)
     if not attachments_root.exists():
         raise SystemExit(f"Attachments folder '{attachments_root}' not found.")
 
-    records, exif_keys = collect_attachments(attachments_root, compiled_path)
+    records, exif_keys = collect_attachments(attachments_root, compiled_path, contacts_xlsx)
     write_excel(records, exif_keys, logfile)
     print(
         f"Copied {len(records)} files from '{attachments_root}' to '{compiled_path}' and logged metadata to '{logfile or DEFAULT_LOGFILE}'."
